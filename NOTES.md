@@ -15,3 +15,9 @@ $ cat /sys/devices/pci0000:00/0000:00:02.0/drm/card0/card0-<MON>/edid`
 ```
 
 This can then be parsed with `parse-edid`.
+
+Of course, for identify a monitor as uniquely as possible, just using an MD5
+sum of the EDID will probably be enough. This can be checked on a device with
+2 displays of the same kind. Even then, it won't matter if it can't 
+distinguish between those 2, i3adc will just need to remember which port either
+was in and act the same for that port and display type.
