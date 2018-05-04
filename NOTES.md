@@ -1,3 +1,5 @@
+# Notes
+
 You can decode the hex that's output in the EDID section from `xrandr --props`:
 
 ```
@@ -21,3 +23,20 @@ sum of the EDID will probably be enough. This can be checked on a device with
 2 displays of the same kind. Even then, it won't matter if it can't 
 distinguish between those 2, i3adc will just need to remember which port either
 was in and act the same for that port and display type.
+
+Looks like you can also get the edid from a shorter path:
+
+```
+$ cat /sys/class/drm/card0-<MON>/edid
+```
+
+From there, we could just make a hash of the EDID, we don't need to parse it at all. With that, and 
+the port we'd know all we need to know about a display, and could print debug info for getting more
+information about a display using `read-edid`. Gotta keep in mind too, this is at least at first 
+going to be a fairly specialised tool...
+
+## Events
+
+* Which changes trigger events in i3? We need to know when a new primary monitor is selected, or 
+when resolutions or positions change, or when something is unplugged or plugged in, etc. If a 
+monitor is not in use, do these events still happen, or is that outside of i3, i.e. in X?
