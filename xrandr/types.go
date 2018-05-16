@@ -47,7 +47,8 @@ type Position struct {
 
 type Properties struct {
 	EDID string // TODO(seeruk): Or should it be bytes?
-	// TODO(seeruk): There's a lot more properties. We just don't care about them?
+	// TODO(seeruk): There's a lot more properties. We just don't care about them? Maybe this should
+	// actually be a map?
 }
 
 // OutputMode represents an output mode. A mode is a resolution and it's supported refresh rates.
