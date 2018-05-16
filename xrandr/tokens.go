@@ -1,5 +1,7 @@
 package xrandr
 
+import "fmt"
+
 const (
 	TokenTypeIllegal TokenType = iota
 	TokenTypeEOF
@@ -13,8 +15,23 @@ const (
 	TokenTypeLineTerminator // Unicode: "\u000A", "\u000D"
 )
 
+var typeNames = map[TokenType]string{
+	TokenTypeIllegal:        "illegal",
+	TokenTypeEOF:            "eof",
+	TokenTypePunctuator:     "punctuator",
+	TokenTypeName:           "name",
+	TokenTypeIntValue:       "int",
+	TokenTypeFloatValue:     "float",
+	TokenTypeWhiteSpace:     "whitespace",
+	TokenTypeLineTerminator: "line terminator",
+}
+
 // TokenType represents the type of a lexical token.
 type TokenType int
+
+func (t TokenType) String() string {
+	return fmt.Sprintf("%s (%d)", typeNames[t], t)
+}
 
 // Token represents a lexical token, used to assist parsing.
 type Token struct {

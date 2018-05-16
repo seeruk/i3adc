@@ -26,6 +26,10 @@ func main() {
 		}
 
 		spew.Dump(tok)
+
+		if tok.Type == xrandr.TokenTypeEOF {
+			break
+		}
 	}
 }
 
