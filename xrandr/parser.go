@@ -2,6 +2,12 @@ package xrandr
 
 import (
 	"fmt"
+	"regexp"
+	"strconv"
+)
+
+var (
+	resolutionPattern = regexp.MustCompile(`^([0-9]+)x([0-9]+)$`)
 )
 
 type Parser struct {
@@ -14,12 +20,133 @@ func NewParser() *Parser {
 }
 
 func (p *Parser) ParseProps(input []byte) (PropsOutput, error) {
-	var output PropsOutput
+	var props PropsOutput
 
 	// This isn't thread-safe.
 	p.lexer = NewLexer(input)
 
-	err := p.parseScreen()
+	err := p.scan()
+	if err != nil {
+		return props, err
+	}
+
+	// "Parse" the screen, we actually just skip it entirely really.
+	err = p.parseScreen()
+	if err != nil {
+		return props, err
+	}
+
+	for {
+		output, err := p.parseOutput()
+		if err != nil {
+			return props, err
+		}
+
+		props.Outputs = append(props.Outputs, output)
+
+		if p.token.Type == TokenTypeEOF {
+			break
+		}
+	}
+
+	return props, nil
+}
+
+func (p *Parser) parseOutputName(output *Output) error {
+	tok, err := p.expect(TokenTypeName)
+	if err != nil {
+		return err
+	}
+
+	output.Name = tok.Literal
+
+	return nil
+}
+
+func (p *Parser) parseOutputStatus(output *Output) error {
+	// Expect connection status.
+	tok, err := p.expect(TokenTypeName)
+	if err != nil {
+		return err
+	}
+
+	if tok.Literal == "connected" {
+		output.IsConnected = true
+	}
+
+	// This is where we'll start branching. Is this output primary?
+	if p.token.Type == TokenTypeName && p.token.Literal == "primary" {
+		output.IsPrimary = true
+
+		if err := p.scan(); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+func (p *Parser) parseResolutionAndPosition(output *Output) error {
+	// If the output is enabled, we should see the current resolution, and the position.
+	if p.token.Type == TokenTypeName {
+		isRes, res := p.parseResolution(p.token.Literal)
+		if !isRes {
+			return nil
+		}
+
+		output.IsEnabled = true
+		output.Resolution = res
+
+		err := p.scan()
+		if err != nil {
+			return err
+		}
+
+		if err := p.skipWithLiteral(TokenTypePunctuator, "+"); err != nil {
+			return err
+		}
+
+		tok, err := p.expect(TokenTypeIntValue)
+		if err != nil {
+			return err
+		}
+
+		offsetX, err := strconv.ParseInt(tok.Literal, 10, 64)
+		if err != nil {
+			return err
+		}
+
+		if err := p.skipWithLiteral(TokenTypePunctuator, "+"); err != nil {
+			return err
+		}
+
+		tok, err = p.expect(TokenTypeIntValue)
+		if err != nil {
+			return err
+		}
+
+		offsetY, err := strconv.ParseInt(tok.Literal, 10, 64)
+		if err != nil {
+			return err
+		}
+
+		output.Position.OffsetX = int(offsetX)
+		output.Position.OffsetY = int(offsetY)
+	}
+
+	return nil
+}
+
+func (p *Parser) parseOutput() (Output, error) {
+	var output Output
+
+	err := p.all(
+		p.parseOutputName(&output),
+		p.parseOutputStatus(&output),
+		p.parseResolutionAndPosition(&output),
+		// TODO(seeruk): Continue. Next up, OutputKey.
+	)
+
 	if err != nil {
 		return output, err
 	}
@@ -27,15 +154,52 @@ func (p *Parser) ParseProps(input []byte) (PropsOutput, error) {
 	return output, nil
 }
 
+func (p *Parser) parseResolution(literal string) (bool, Resolution) {
+	var res Resolution
+
+	matches := resolutionPattern.FindStringSubmatch(literal)
+
+	if len(matches) != 3 {
+		return false, res
+	}
+
+	xres, err := strconv.ParseUint(matches[1], 10, 64)
+	if err != nil {
+		return false, res
+	}
+
+	yres, err := strconv.ParseUint(matches[2], 10, 64)
+	if err != nil {
+		return false, res
+	}
+
+	res.Width = uint(xres)
+	res.Height = uint(yres)
+
+	return true, res
+}
+
 func (p *Parser) parseScreen() error {
 	// Scan, and skip all expectations here.
 	return p.all(
-		p.expectWithLiteral(TokenTypeName, "Screen"),
-		p.expect(TokenTypeWhiteSpace),
-		p.expect(TokenTypeIntValue),
-		p.expect(TokenTypePunctuator),
-		p.expect(TokenTypeWhiteSpace),
-		p.expectWithLiteral(TokenTypeName, "minimum"),
+		p.skipWithLiteral(TokenTypeName, "Screen"),
+		p.skip(TokenTypeIntValue),
+		p.skip(TokenTypePunctuator),
+		p.skipWithLiteral(TokenTypeName, "minimum"),
+		p.skip(TokenTypeIntValue),
+		p.skipWithLiteral(TokenTypeName, "x"),
+		p.skip(TokenTypeIntValue),
+		p.skip(TokenTypePunctuator),
+		p.skipWithLiteral(TokenTypeName, "current"),
+		p.skip(TokenTypeIntValue),
+		p.skipWithLiteral(TokenTypeName, "x"),
+		p.skip(TokenTypeIntValue),
+		p.skip(TokenTypePunctuator),
+		p.skipWithLiteral(TokenTypeName, "maximum"),
+		p.skip(TokenTypeIntValue),
+		p.skipWithLiteral(TokenTypeName, "x"),
+		p.skip(TokenTypeIntValue),
+		p.skip(TokenTypeLineTerminator),
 	)
 }
 
@@ -51,42 +215,111 @@ func (p *Parser) all(errs ...error) error {
 	return nil
 }
 
-func (p *Parser) expect(t TokenType) error {
-	err := p.scan()
+func (p *Parser) expect(t TokenType) (Token, error) {
+	token := p.token
+	match, err := p.match(t)
+	if err != nil {
+		return token, err
+	}
+
+	if match {
+		return token, nil
+	}
+
+	return token, fmt.Errorf(
+		"syntax error: unexpected token found: %s (%q). Wanted: %s. Line: %d. Column: %d",
+		p.token.Type.String(),
+		p.token.Literal,
+		t.String(),
+		p.token.Line,
+		p.token.Position,
+	)
+}
+
+func (p *Parser) expectWithLiteral(t TokenType, l string) (Token, error) {
+	token := p.token
+	err := p.skip(t)
+
+	if err != nil {
+		return token, err
+	}
+
+	if token.Literal != l {
+		return token, fmt.Errorf(
+			"syntax error: unexpected literal %q found for token type %q. Line: %d. Column: %d",
+			l,
+			t.String(),
+			token.Line,
+			token.Position,
+		)
+	}
+
+	return token, nil
+}
+
+// skip reads the next token, then verifies that it matches the given type expectation. If it
+// doesn't, then an error will be returned. If scanning fails, an error will be returned.
+func (p *Parser) skip(t TokenType) error {
+	token := p.token
+
+	match, err := p.match(t)
 	if err != nil {
 		return err
 	}
 
-	if p.token.Type != t {
+	if match {
+		return nil
+	}
+
+	return fmt.Errorf(
+		"syntax error: unexpected token found: %s (%q). Wanted: %s. Line: %d. Column: %d",
+		token.Type.String(),
+		token.Literal,
+		t.String(),
+		token.Line,
+		token.Position,
+	)
+}
+
+// skipWithLiteral reads the next token, then verifies that it matches the given type and string
+// literal expectations. If it doesn't, then an error will be returned. If scanning fails, an error
+// will be returned.
+func (p *Parser) skipWithLiteral(t TokenType, l string) error {
+	token := p.token
+
+	err := p.skip(t)
+	if err != nil {
+		return err
+	}
+
+	if token.Literal != l {
 		return fmt.Errorf(
-			"syntax error: unexpected token found: %s (%q). Wanted: %s",
-			p.token.Type.String(),
-			p.token.Literal,
+			"syntax error: unexpected literal %q found for token type %q. Line: %d. Column: %d",
+			l,
 			t.String(),
+			token.Line,
+			token.Position,
 		)
 	}
 
 	return nil
 }
 
-func (p *Parser) expectWithLiteral(t TokenType, l string) error {
-	err := p.expect(t)
-	if err != nil {
-		return err
+func (p *Parser) match(t TokenType) (bool, error) {
+	var err error
+	match := p.token.Type == t
+	if match {
+		p.token, err = p.lexer.Scan()
 	}
 
-	if p.token.Literal != l {
-		return fmt.Errorf(
-			"syntax error: unexpected literal found for token type %s: %s",
-			t.String(),
-			l,
-		)
-	}
-
-	return nil
+	return match, err
 }
 
 func (p *Parser) scan() (err error) {
 	p.token, err = p.lexer.Scan()
 	return err
 }
+
+// check current, read next, return current = expect
+// check current, read next = skip
+// check current = p.token

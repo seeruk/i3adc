@@ -25,6 +25,7 @@ type PropsOutput struct {
 type Output struct {
 	Name        string
 	IsConnected bool
+	IsPrimary   bool
 	IsEnabled   bool // If no resolution is set, not enabled.
 	Resolution  Resolution
 	Position    Position
@@ -70,5 +71,5 @@ type Rate struct {
 	IsPreferred bool // Represented by `+` in output.
 }
 
-// DP-2 connected 1080x1920+2560+0 left X axis (normal left inverted right x axis y axis) 477mm x 268mm
-// Name, IsConnected, IsEnabled / Resolution, Position, Rotation, Reflection, Available, Dimensions
+// DP-2 connected primary 1080x1920+2560+0 left X axis (normal left inverted right x axis y axis) 477mm x 268mm
+// Name, IsConnected, IsEnabled, IsPrimary / Resolution, Position, Rotation, Reflection, Available, Dimensions

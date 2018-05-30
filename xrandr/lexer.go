@@ -48,6 +48,12 @@ func (l *Lexer) Scan() (token Token, err error) {
 	// Whitespace:
 	case r == ' ' || r == rune(0x0009):
 		token, err = l.scanWhitespace(r)
+		if err != nil {
+			return token, err
+		}
+
+		// Skip whitespace
+		token, err = l.Scan()
 	// Punctuators:
 	case r == ':' || r == '(' || r == ')' || r == ',' || r == '*' || r == '+':
 		token, err = l.scanPunctuator(r)
@@ -76,7 +82,7 @@ func (l *Lexer) scanLineTerminator(r rune) (Token, error) {
 	byteStart := l.pos - 1
 	runeStart := l.lpos
 
-	// If we got a carriage return, we might expect a newline next.
+	// If we got a carriage return, we might skip a newline next.
 	if r == '\r' {
 		r, _ := l.read()
 		if r != '\n' {
@@ -101,7 +107,7 @@ func (l *Lexer) scanNameOrNumber(r rune) (Token, error) {
 	byteStart := l.pos - 1
 	runeStart := l.lpos
 
-	isNumber := r >= '0' || r <= '9' // Until we encounter a letter.
+	isNumber := r >= '0' && r <= '9' // Until we encounter a letter.
 	isFloat := false                 // Until we encounter a '.' and are still a number.
 
 	var done bool
