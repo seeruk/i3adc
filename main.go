@@ -16,21 +16,14 @@ func main() {
 	output, err := command.CombinedOutput()
 	fatal(err)
 
-	lexer := xrandr.NewLexer(output)
+	parser := xrandr.NewParser()
 
-	for {
-		tok, err := lexer.Scan()
-		if err != nil {
-			log.Println(err)
-			break
-		}
-
-		spew.Dump(tok)
-
-		if tok.Type == xrandr.TokenTypeEOF {
-			break
-		}
+	props, err := parser.ParseProps(output)
+	if err != nil {
+		log.Fatalln(err)
 	}
+
+	spew.Dump(props)
 }
 
 func fatal(err error) {
