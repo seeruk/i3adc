@@ -10,7 +10,8 @@ const (
 type Rotation int
 
 const (
-	ReflectionXAxis = iota
+	ReflectionoNone = iota
+	ReflectionXAxis
 	ReflectionYAxis
 )
 
@@ -31,6 +32,8 @@ type Output struct {
 	Position    Position
 	Rotation    Rotation
 	Reflection  Reflection
+	Dimensions  Dimensions
+	Properties  map[string]string
 	Modes       []OutputMode
 }
 
@@ -46,10 +49,10 @@ type Position struct {
 	OffsetY int
 }
 
-type Properties struct {
-	EDID string // TODO(seeruk): Or should it be bytes?
-	// TODO(seeruk): There's a lot more properties. We just don't care about them? Maybe this should
-	// actually be a map?
+// Dimensions represents the physical dimensions of an output. Usually in mm.
+type Dimensions struct {
+	Width  uint
+	Height uint
 }
 
 // OutputMode represents an output mode. A mode is a resolution and it's supported refresh rates.

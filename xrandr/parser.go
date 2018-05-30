@@ -7,16 +7,20 @@ import (
 )
 
 var (
+	dimensionPattern  = regexp.MustCompile(`^([0-9]+)mm$`)
 	resolutionPattern = regexp.MustCompile(`^([0-9]+)x([0-9]+)$`)
 )
 
 type Parser struct {
-	lexer *Lexer
-	token Token
+	lexer  *Lexer
+	token  Token
+	skipWS bool
 }
 
 func NewParser() *Parser {
-	return &Parser{}
+	return &Parser{
+		skipWS: true,
+	}
 }
 
 func (p *Parser) ParseProps(input []byte) (PropsOutput, error) {
@@ -137,14 +141,143 @@ func (p *Parser) parseResolutionAndPosition(output *Output) error {
 	return nil
 }
 
+func (p *Parser) parseOutputRotationAndReflection(output *Output) error {
+	if p.token.Type == TokenTypeName {
+		var found bool
+		switch p.token.Literal {
+		case "normal":
+			output.Rotation = RotationNormal
+			found = true
+		case "left":
+			output.Rotation = RotationLeft
+			found = true
+		case "inverted":
+			output.Rotation = RotationInverted
+			found = true
+		case "right":
+			output.Rotation = RotationRight
+			found = true
+		default:
+			found = false
+		}
+
+		if found {
+			err := p.scan()
+			if err != nil {
+				return err
+			}
+		}
+	}
+
+	if p.token.Type == TokenTypeName {
+		var foundX bool
+		var foundY bool
+
+		switch p.token.Literal {
+		case "x":
+			foundX = true
+		case "y":
+			foundY = true
+		}
+
+		if foundX || foundY {
+			err := p.scan()
+			if err != nil {
+				return err
+			}
+
+			if p.token.Type == TokenTypeName && p.token.Literal == "axis" {
+				if foundX {
+					output.Reflection = ReflectionXAxis
+				}
+
+				if foundY {
+					output.Reflection = ReflectionYAxis
+				}
+
+				err := p.scan()
+				if err != nil {
+					return err
+				}
+			}
+		}
+	}
+
+	return nil
+}
+
+func (p *Parser) parseOutputRotationAndReflectionKey() error {
+	return p.all(
+		p.skipWithLiteral(TokenTypePunctuator, "("),
+		p.skipWithLiteral(TokenTypeName, "normal"),
+		p.skipWithLiteral(TokenTypeName, "left"),
+		p.skipWithLiteral(TokenTypeName, "inverted"),
+		p.skipWithLiteral(TokenTypeName, "right"),
+		p.skipWithLiteral(TokenTypeName, "x"),
+		p.skipWithLiteral(TokenTypeName, "axis"),
+		p.skipWithLiteral(TokenTypeName, "y"),
+		p.skipWithLiteral(TokenTypeName, "axis"),
+		p.skipWithLiteral(TokenTypePunctuator, ")"),
+	)
+
+	return nil
+}
+
+func (p *Parser) parseOutputDimensions(output *Output) error {
+	xdim, err := p.parseOutputDimension()
+	if err != nil {
+		return err
+	}
+
+	err = p.skipWithLiteral(TokenTypeName, "x")
+	if err != nil {
+		return err
+	}
+
+	ydim, err := p.parseOutputDimension()
+	if err != nil {
+		return err
+	}
+
+	output.Dimensions.Width = xdim
+	output.Dimensions.Height = ydim
+
+	return nil
+}
+
+func (p *Parser) parseOutputDimension() (uint, error) {
+	tok, err := p.expect(TokenTypeName)
+	if err != nil {
+		return 0, err
+	}
+
+	matches := dimensionPattern.FindStringSubmatch(tok.Literal)
+
+	if len(matches) != 2 {
+		return 0, err
+	}
+
+	dim, err := strconv.ParseUint(matches[1], 10, 64)
+	if err != nil {
+		return 0, err
+	}
+
+	return uint(dim), nil
+}
+
 func (p *Parser) parseOutput() (Output, error) {
-	var output Output
+	output := Output{}
+	output.Properties = make(map[string]string)
+	output.Rotation = RotationNormal
+	output.Reflection = ReflectionoNone
 
 	err := p.all(
 		p.parseOutputName(&output),
 		p.parseOutputStatus(&output),
 		p.parseResolutionAndPosition(&output),
-		// TODO(seeruk): Continue. Next up, OutputKey.
+		p.parseOutputRotationAndReflection(&output),
+		p.parseOutputRotationAndReflectionKey(),
+		p.parseOutputDimensions(&output),
 	)
 
 	if err != nil {
@@ -236,27 +369,6 @@ func (p *Parser) expect(t TokenType) (Token, error) {
 	)
 }
 
-func (p *Parser) expectWithLiteral(t TokenType, l string) (Token, error) {
-	token := p.token
-	err := p.skip(t)
-
-	if err != nil {
-		return token, err
-	}
-
-	if token.Literal != l {
-		return token, fmt.Errorf(
-			"syntax error: unexpected literal %q found for token type %q. Line: %d. Column: %d",
-			l,
-			t.String(),
-			token.Line,
-			token.Position,
-		)
-	}
-
-	return token, nil
-}
-
 // skip reads the next token, then verifies that it matches the given type expectation. If it
 // doesn't, then an error will be returned. If scanning fails, an error will be returned.
 func (p *Parser) skip(t TokenType) error {
@@ -309,7 +421,7 @@ func (p *Parser) match(t TokenType) (bool, error) {
 	var err error
 	match := p.token.Type == t
 	if match {
-		p.token, err = p.lexer.Scan()
+		err = p.scan()
 	}
 
 	return match, err
@@ -317,9 +429,24 @@ func (p *Parser) match(t TokenType) (bool, error) {
 
 func (p *Parser) scan() (err error) {
 	p.token, err = p.lexer.Scan()
-	return err
+	if err != nil {
+		return err
+	}
+
+	if p.skipWS && p.token.Type == TokenTypeWhiteSpace {
+		return p.scan()
+	}
+
+	return nil
 }
 
 // check current, read next, return current = expect
 // check current, read next = skip
 // check current = p.token
+
+// Maybe what we really need is two variants of scan:
+// - One for scanning any token.
+// - One for scanning any token other than whitespace.
+//
+// Both functions should get the next token, but also keep the last. Maybe even when scan is called,
+// then the previous token is returned or something.

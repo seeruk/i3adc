@@ -48,12 +48,6 @@ func (l *Lexer) Scan() (token Token, err error) {
 	// Whitespace:
 	case r == ' ' || r == rune(0x0009):
 		token, err = l.scanWhitespace(r)
-		if err != nil {
-			return token, err
-		}
-
-		// Skip whitespace
-		token, err = l.Scan()
 	// Punctuators:
 	case r == ':' || r == '(' || r == ')' || r == ',' || r == '*' || r == '+':
 		token, err = l.scanPunctuator(r)
