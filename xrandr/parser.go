@@ -51,14 +51,6 @@ func (p *Parser) all(errs ...error) error {
 	return nil
 }
 
-func (p *Parser) assert(t TokenType) bool {
-	return p.token.Type == t
-}
-
-func (p *Parser) assertWithLiteral(t TokenType, l string) bool {
-	return p.token.Type == t && p.token.Literal == l
-}
-
 func (p *Parser) expect(t TokenType) error {
 	err := p.scan()
 	if err != nil {
@@ -97,24 +89,4 @@ func (p *Parser) expectWithLiteral(t TokenType, l string) error {
 func (p *Parser) scan() (err error) {
 	p.token, err = p.lexer.Scan()
 	return err
-}
-
-func (p *Parser) skip(t TokenType) (bool, error) {
-	var err error
-	match := p.token.Type == t
-	if match {
-		p.token, err = p.lexer.Scan()
-	}
-
-	return match, err
-}
-
-func (p *Parser) skipWithLiteral(t TokenType, l string) (bool, error) {
-	var err error
-	match := p.token.Type == t && p.token.Literal == l
-	if match {
-		p.token, err = p.lexer.Scan()
-	}
-
-	return match, err
 }
