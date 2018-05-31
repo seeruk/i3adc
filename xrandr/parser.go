@@ -224,6 +224,21 @@ func (p *Parser) parseOutputRotationAndReflectionKey() error {
 }
 
 func (p *Parser) parseOutputDimensions(output *Output) error {
+	// We probably hit the end of the line here.
+	if p.token.Type != TokenTypeName {
+		if p.token.Type == TokenTypeLineTerminator {
+			// Stop skipping whitespace.
+			p.skipWS = false
+
+			err := p.scan()
+			if err != nil {
+				return err
+			}
+		}
+
+		return nil
+	}
+
 	xdim, err := p.parseOutputDimension()
 	if err != nil {
 		return err
@@ -265,6 +280,66 @@ func (p *Parser) parseOutputDimension() (uint, error) {
 	return uint(dim), nil
 }
 
+func (p *Parser) parseProperties(output *Output) error {
+	for {
+		// We don't have a property here.
+		if p.token.Type != TokenTypeWhiteSpace && p.token.Literal != "\t" {
+			return nil
+		}
+
+		err := p.parseProperty(output)
+		if err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+func (p *Parser) parseProperty(output *Output) error {
+	err := p.scan()
+	if err != nil {
+		return err
+	}
+
+	var name string
+	var value string
+
+	tok, err := p.expect(TokenTypeName)
+	if err != nil {
+		return err
+	}
+
+	// Gather up the entire name. Including any spaces, etc. Until we hit a ':'.
+	name = tok.Literal
+
+	for {
+		if p.token.Type == TokenTypePunctuator && p.token.Literal == ":" {
+			break
+		}
+
+		name += tok.Literal
+
+		err := p.scan()
+		if err != nil {
+			return err
+		}
+	}
+
+	// Then get the value. If there's something on the same line, take that as the value. If there's
+	// something only on the line below, then use that until we hit another property start.
+
+	// TODO(seeruk): Do we need to be able to look ahead a couple of tokens? So we can see if we
+	// have 2 tabs in a row? Otherwise, how do we know if we've hit another property, or if we've
+	// hit another value. Maybe we can consume on of the tabs. Either that, or we have to be able to
+	// unscan, and go back a little bit through the tokens we've already seen. Could be a little
+	// weird...
+
+	output.Properties[name] = value
+
+	return nil
+}
+
 func (p *Parser) parseOutput() (Output, error) {
 	output := Output{}
 	output.Properties = make(map[string]string)
@@ -278,6 +353,7 @@ func (p *Parser) parseOutput() (Output, error) {
 		p.parseOutputRotationAndReflection(&output),
 		p.parseOutputRotationAndReflectionKey(),
 		p.parseOutputDimensions(&output),
+		p.parseProperties(&output),
 	)
 
 	if err != nil {
