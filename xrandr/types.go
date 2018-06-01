@@ -10,7 +10,7 @@ const (
 type Rotation int
 
 const (
-	ReflectionoNone = iota
+	ReflectionNone = iota
 	ReflectionXAxis
 	ReflectionYAxis
 )

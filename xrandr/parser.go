@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"regexp"
 	"strconv"
+	"strings"
 )
 
 var (
@@ -57,6 +58,8 @@ func (p *Parser) ParseProps(input []byte) (PropsOutput, error) {
 }
 
 func (p *Parser) parseOutputName(output *Output) error {
+	p.skipWS = true
+
 	tok, err := p.expect(TokenTypeName)
 	if err != nil {
 		return err
@@ -68,14 +71,18 @@ func (p *Parser) parseOutputName(output *Output) error {
 }
 
 func (p *Parser) parseOutputStatus(output *Output) error {
-	// Expect connection status.
-	tok, err := p.expect(TokenTypeName)
-	if err != nil {
+	p.skipWS = true
+
+	if err := p.scan(); err != nil {
 		return err
 	}
 
-	if tok.Literal == "connected" {
+	if p.token.Literal == "connected" {
 		output.IsConnected = true
+
+		if err := p.scan(); err != nil {
+			return err
+		}
 	}
 
 	// This is where we'll start branching. Is this output primary?
@@ -91,6 +98,8 @@ func (p *Parser) parseOutputStatus(output *Output) error {
 }
 
 func (p *Parser) parseResolutionAndPosition(output *Output) error {
+	p.skipWS = true
+
 	// If the output is enabled, we should see the current resolution, and the position.
 	if p.token.Type == TokenTypeName {
 		isRes, res := p.parseResolution(p.token.Literal)
@@ -142,6 +151,8 @@ func (p *Parser) parseResolutionAndPosition(output *Output) error {
 }
 
 func (p *Parser) parseOutputRotationAndReflection(output *Output) error {
+	p.skipWS = true
+
 	if p.token.Type == TokenTypeName {
 		var found bool
 		switch p.token.Literal {
@@ -207,6 +218,8 @@ func (p *Parser) parseOutputRotationAndReflection(output *Output) error {
 }
 
 func (p *Parser) parseOutputRotationAndReflectionKey() error {
+	p.skipWS = true
+
 	return p.all(
 		p.skipWithLiteral(TokenTypePunctuator, "("),
 		p.skipWithLiteral(TokenTypeName, "normal"),
@@ -224,12 +237,11 @@ func (p *Parser) parseOutputRotationAndReflectionKey() error {
 }
 
 func (p *Parser) parseOutputDimensions(output *Output) error {
+	p.skipWS = true
+
 	// We probably hit the end of the line here.
 	if p.token.Type != TokenTypeName {
 		if p.token.Type == TokenTypeLineTerminator {
-			// Stop skipping whitespace.
-			p.skipWS = false
-
 			err := p.scan()
 			if err != nil {
 				return err
@@ -261,6 +273,8 @@ func (p *Parser) parseOutputDimensions(output *Output) error {
 }
 
 func (p *Parser) parseOutputDimension() (uint, error) {
+	p.skipWS = true
+
 	tok, err := p.expect(TokenTypeName)
 	if err != nil {
 		return 0, err
@@ -281,13 +295,20 @@ func (p *Parser) parseOutputDimension() (uint, error) {
 }
 
 func (p *Parser) parseProperties(output *Output) error {
+	// Stop skipping whitespace.
+	p.skipWS = false
+
 	for {
-		// We don't have a property here.
 		if p.token.Type != TokenTypeWhiteSpace && p.token.Literal != "\t" {
 			return nil
 		}
 
-		err := p.parseProperty(output)
+		err := p.scan()
+		if err != nil {
+			return err
+		}
+
+		err = p.parseProperty(output)
 		if err != nil {
 			return err
 		}
@@ -297,11 +318,6 @@ func (p *Parser) parseProperties(output *Output) error {
 }
 
 func (p *Parser) parseProperty(output *Output) error {
-	err := p.scan()
-	if err != nil {
-		return err
-	}
-
 	var name string
 	var value string
 
@@ -318,24 +334,179 @@ func (p *Parser) parseProperty(output *Output) error {
 			break
 		}
 
-		name += tok.Literal
+		name += p.token.Literal
 
-		err := p.scan()
-		if err != nil {
+		if err := p.scan(); err != nil {
 			return err
 		}
 	}
 
-	// Then get the value. If there's something on the same line, take that as the value. If there's
-	// something only on the line below, then use that until we hit another property start.
+	err = p.all(
+		p.skipWithLiteral(TokenTypePunctuator, ":"),
+		p.skipWithLiteral(TokenTypeWhiteSpace, " "),
+	)
 
-	// TODO(seeruk): Do we need to be able to look ahead a couple of tokens? So we can see if we
-	// have 2 tabs in a row? Otherwise, how do we know if we've hit another property, or if we've
-	// hit another value. Maybe we can consume on of the tabs. Either that, or we have to be able to
-	// unscan, and go back a little bit through the tokens we've already seen. Could be a little
-	// weird...
+	if err != nil {
+		return err
+	}
 
-	output.Properties[name] = value
+	if p.token.Type == TokenTypeLineTerminator {
+		for {
+			if err := p.scan(); err != nil {
+				return err
+			}
+
+			// We're no longer processing properties if we've hit something that's not a tab at the
+			// start of a new line.
+			if p.token.Type != TokenTypeWhiteSpace || p.token.Literal != "\t" {
+				break
+			}
+
+			if err := p.scan(); err != nil {
+				return err
+			}
+
+			// If we don't get a second tab, we've hit a new property. So, we need to bail.
+			if p.token.Type != TokenTypeWhiteSpace || p.token.Literal != "\t" {
+				break
+			}
+
+			for {
+				if err := p.scan(); err != nil {
+					return err
+				}
+
+				if p.token.Type == TokenTypeLineTerminator {
+					break
+				}
+
+				value += p.token.Literal
+			}
+		}
+	} else if p.token.Type == TokenTypeName || p.token.Type == TokenTypeIntValue || p.token.Type == TokenTypeFloatValue {
+		value += p.token.Literal
+
+		for {
+			if err := p.scan(); err != nil {
+				return err
+			}
+
+			// Consume the value that's on the same line.
+			if p.token.Type == TokenTypeLineTerminator {
+				break
+			}
+
+			value += p.token.Literal
+		}
+
+		// Then, consume everything else after it until we hit another thing that looks like a
+		// new property.
+		for {
+			if err := p.scan(); err != nil {
+				return err
+			}
+
+			// We're no longer processing properties if we've hit something that's not a tab at the
+			// start of a new line.
+			if p.token.Type != TokenTypeWhiteSpace || p.token.Literal != "\t" {
+				break
+			}
+
+			if err := p.scan(); err != nil {
+				return err
+			}
+
+			// If we don't get a second tab, we've hit a new property. So, we need to bail.
+			if p.token.Type != TokenTypeWhiteSpace || p.token.Literal != "\t" {
+				break
+			}
+
+			// Skip past the "value"
+			for {
+				if err := p.scan(); err != nil {
+					return err
+				}
+
+				if p.token.Type == TokenTypeLineTerminator {
+					break
+				}
+			}
+		}
+	}
+
+	output.Properties[strings.TrimSpace(name)] = strings.TrimSpace(value)
+
+	return nil
+}
+
+func (p *Parser) parseModes(output *Output) error {
+	p.skipWS = true
+
+	// Sometimes we don't have modes to parse.
+	if p.token.Type != TokenTypeWhiteSpace && p.token.Literal != " " {
+		return nil
+	}
+
+	if err := p.scan(); err != nil {
+		return err
+	}
+
+	for {
+		if p.token.Type != TokenTypeName {
+			break
+		}
+
+		var mode OutputMode
+
+		isRes, res := p.parseResolution(p.token.Literal)
+		if !isRes {
+			return fmt.Errorf("expected resolution: got %q", p.token.Literal)
+		}
+
+		mode.Resolution = res
+
+		if err := p.scan(); err != nil {
+			return err
+		}
+
+		for {
+			if p.token.Type != TokenTypeFloatValue {
+				break
+			}
+
+			var rate Rate
+			var err error
+
+			rate.Rate, err = strconv.ParseFloat(p.token.Literal, 64)
+			if err != nil {
+				return err
+			}
+
+			if err := p.scan(); err != nil {
+				return err
+			}
+
+			if p.token.Type == TokenTypePunctuator && p.token.Literal == "*" {
+				rate.IsCurrent = true
+
+				if err := p.scan(); err != nil {
+					return err
+				}
+			}
+
+			if p.token.Type == TokenTypePunctuator && p.token.Literal == "+" {
+				rate.IsPreferred = true
+
+				if err := p.scan(); err != nil {
+					return err
+				}
+			}
+
+			mode.Rates = append(mode.Rates, rate)
+		}
+
+		output.Modes = append(output.Modes, mode)
+	}
 
 	return nil
 }
@@ -344,20 +515,46 @@ func (p *Parser) parseOutput() (Output, error) {
 	output := Output{}
 	output.Properties = make(map[string]string)
 	output.Rotation = RotationNormal
-	output.Reflection = ReflectionoNone
+	output.Reflection = ReflectionNone
 
-	err := p.all(
-		p.parseOutputName(&output),
-		p.parseOutputStatus(&output),
-		p.parseResolutionAndPosition(&output),
-		p.parseOutputRotationAndReflection(&output),
-		p.parseOutputRotationAndReflectionKey(),
-		p.parseOutputDimensions(&output),
-		p.parseProperties(&output),
-	)
-
+	err := p.parseOutputName(&output)
 	if err != nil {
-		return output, err
+		return output, fmt.Errorf("error parsing output name: %v", err)
+	}
+
+	err = p.parseOutputStatus(&output)
+	if err != nil {
+		return output, fmt.Errorf("error parsing output status: %v", err)
+	}
+
+	err = p.parseResolutionAndPosition(&output)
+	if err != nil {
+		return output, fmt.Errorf("error parsing output resolution and position: %v", err)
+	}
+
+	err = p.parseOutputRotationAndReflection(&output)
+	if err != nil {
+		return output, fmt.Errorf("error parsing output rotation and reflection: %v", err)
+	}
+
+	err = p.parseOutputRotationAndReflectionKey()
+	if err != nil {
+		return output, fmt.Errorf("error parsing output rotation and reflection key: %v", err)
+	}
+
+	err = p.parseOutputDimensions(&output)
+	if err != nil {
+		return output, fmt.Errorf("error parsing output dimensions: %v", err)
+	}
+
+	err = p.parseProperties(&output)
+	if err != nil {
+		return output, fmt.Errorf("error parsing output properties: %v", err)
+	}
+
+	err = p.parseModes(&output)
+	if err != nil {
+		return output, fmt.Errorf("error parsing output modes: %v", err)
 	}
 
 	return output, nil
