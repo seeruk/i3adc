@@ -9,7 +9,7 @@ import (
 
 var (
 	dimensionPattern  = regexp.MustCompile(`^([0-9]+)mm$`)
-	resolutionPattern = regexp.MustCompile(`^([0-9]+)x([0-9]+)$`)
+	resolutionPattern = regexp.MustCompile(`^([0-9]+)x([0-9]+)i?$`)
 )
 
 type Parser struct {
@@ -73,12 +73,13 @@ func (p *Parser) parseOutputName(output *Output) error {
 func (p *Parser) parseOutputStatus(output *Output) error {
 	p.skipWS = true
 
-	if err := p.scan(); err != nil {
-		return err
+	// Looks like we're missing any status info.
+	if p.token.Type != TokenTypeName {
+		return nil
 	}
 
-	if p.token.Literal == "connected" {
-		output.IsConnected = true
+	if p.token.Literal == "connected" || p.token.Literal == "disconnected" {
+		output.IsConnected = p.token.Literal == "connected"
 
 		if err := p.scan(); err != nil {
 			return err
@@ -220,6 +221,10 @@ func (p *Parser) parseOutputRotationAndReflection(output *Output) error {
 func (p *Parser) parseOutputRotationAndReflectionKey() error {
 	p.skipWS = true
 
+	if p.token.Type != TokenTypePunctuator && p.token.Literal == "(" {
+		return nil
+	}
+
 	return p.all(
 		p.skipWithLiteral(TokenTypePunctuator, "("),
 		p.skipWithLiteral(TokenTypeName, "normal"),
@@ -242,8 +247,10 @@ func (p *Parser) parseOutputDimensions(output *Output) error {
 	// We probably hit the end of the line here.
 	if p.token.Type != TokenTypeName {
 		if p.token.Type == TokenTypeLineTerminator {
-			err := p.scan()
-			if err != nil {
+			// We _might_ hit properties next, so we have to do this in advance.
+			p.skipWS = false
+
+			if err := p.scan(); err != nil {
 				return err
 			}
 		}
@@ -268,6 +275,15 @@ func (p *Parser) parseOutputDimensions(output *Output) error {
 
 	output.Dimensions.Width = xdim
 	output.Dimensions.Height = ydim
+
+	if p.token.Type == TokenTypeLineTerminator {
+		// We might start looking for properties next, so should stop skipping whitespace.
+		p.skipWS = false
+
+		if err := p.scan(); err != nil {
+			return err
+		}
+	}
 
 	return nil
 }
@@ -298,32 +314,36 @@ func (p *Parser) parseProperties(output *Output) error {
 	// Stop skipping whitespace.
 	p.skipWS = false
 
+	if err := p.skipWithLiteral(TokenTypeWhiteSpace, "\t"); err != nil {
+		return err
+	}
+
 	for {
-		if p.token.Type != TokenTypeWhiteSpace && p.token.Literal != "\t" {
-			return nil
-		}
-
-		err := p.scan()
+		stop, err := p.parseProperty(output)
 		if err != nil {
 			return err
 		}
 
-		err = p.parseProperty(output)
-		if err != nil {
-			return err
+		if stop {
+			break
+		}
+
+		if p.token.Type != TokenTypeName {
+			break
 		}
 	}
 
 	return nil
 }
 
-func (p *Parser) parseProperty(output *Output) error {
+func (p *Parser) parseProperty(output *Output) (bool, error) {
 	var name string
 	var value string
+	var stop bool
 
 	tok, err := p.expect(TokenTypeName)
 	if err != nil {
-		return err
+		return stop, err
 	}
 
 	// Gather up the entire name. Including any spaces, etc. Until we hit a ':'.
@@ -337,7 +357,7 @@ func (p *Parser) parseProperty(output *Output) error {
 		name += p.token.Literal
 
 		if err := p.scan(); err != nil {
-			return err
+			return stop, err
 		}
 	}
 
@@ -347,33 +367,35 @@ func (p *Parser) parseProperty(output *Output) error {
 	)
 
 	if err != nil {
-		return err
+		return stop, err
 	}
 
 	if p.token.Type == TokenTypeLineTerminator {
 		for {
 			if err := p.scan(); err != nil {
-				return err
+				return stop, err
 			}
 
 			// We're no longer processing properties if we've hit something that's not a tab at the
 			// start of a new line.
 			if p.token.Type != TokenTypeWhiteSpace || p.token.Literal != "\t" {
+				stop = true
 				break
 			}
 
 			if err := p.scan(); err != nil {
-				return err
+				return stop, err
 			}
 
-			// If we don't get a second tab, we've hit a new property. So, we need to bail.
+			// If we don't get a second tab, we've hit a new property. So, we need to bail from this
+			// loop iteration.
 			if p.token.Type != TokenTypeWhiteSpace || p.token.Literal != "\t" {
 				break
 			}
 
 			for {
 				if err := p.scan(); err != nil {
-					return err
+					return stop, err
 				}
 
 				if p.token.Type == TokenTypeLineTerminator {
@@ -388,7 +410,7 @@ func (p *Parser) parseProperty(output *Output) error {
 
 		for {
 			if err := p.scan(); err != nil {
-				return err
+				return stop, err
 			}
 
 			// Consume the value that's on the same line.
@@ -403,17 +425,18 @@ func (p *Parser) parseProperty(output *Output) error {
 		// new property.
 		for {
 			if err := p.scan(); err != nil {
-				return err
+				return stop, err
 			}
 
 			// We're no longer processing properties if we've hit something that's not a tab at the
 			// start of a new line.
 			if p.token.Type != TokenTypeWhiteSpace || p.token.Literal != "\t" {
+				stop = true
 				break
 			}
 
 			if err := p.scan(); err != nil {
-				return err
+				return stop, err
 			}
 
 			// If we don't get a second tab, we've hit a new property. So, we need to bail.
@@ -424,7 +447,7 @@ func (p *Parser) parseProperty(output *Output) error {
 			// Skip past the "value"
 			for {
 				if err := p.scan(); err != nil {
-					return err
+					return stop, err
 				}
 
 				if p.token.Type == TokenTypeLineTerminator {
@@ -436,7 +459,7 @@ func (p *Parser) parseProperty(output *Output) error {
 
 	output.Properties[strings.TrimSpace(name)] = strings.TrimSpace(value)
 
-	return nil
+	return stop, nil
 }
 
 func (p *Parser) parseModes(output *Output) error {
@@ -460,7 +483,9 @@ func (p *Parser) parseModes(output *Output) error {
 
 		isRes, res := p.parseResolution(p.token.Literal)
 		if !isRes {
-			return fmt.Errorf("expected resolution: got %q", p.token.Literal)
+			// We've probably just hit the end of resolutions at this point, and are looking at the
+			// next output.
+			return nil
 		}
 
 		mode.Resolution = res
@@ -506,6 +531,13 @@ func (p *Parser) parseModes(output *Output) error {
 		}
 
 		output.Modes = append(output.Modes, mode)
+
+		if p.token.Type == TokenTypeLineTerminator {
+
+			if err := p.scan(); err != nil {
+				return err
+			}
+		}
 	}
 
 	return nil
@@ -712,14 +744,3 @@ func (p *Parser) scan() (err error) {
 
 	return nil
 }
-
-// check current, read next, return current = expect
-// check current, read next = skip
-// check current = p.token
-
-// Maybe what we really need is two variants of scan:
-// - One for scanning any token.
-// - One for scanning any token other than whitespace.
-//
-// Both functions should get the next token, but also keep the last. Maybe even when scan is called,
-// then the previous token is returned or something.
