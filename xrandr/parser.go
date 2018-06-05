@@ -208,17 +208,17 @@ func (p *Parser) parseOutputRotationAndReflectionKey() error {
 		return nil
 	}
 
-	return p.all(
-		p.skipWithLiteral(TokenTypePunctuator, "("),
-		p.skipWithLiteral(TokenTypeName, "normal"),
-		p.skipWithLiteral(TokenTypeName, "left"),
-		p.skipWithLiteral(TokenTypeName, "inverted"),
-		p.skipWithLiteral(TokenTypeName, "right"),
-		p.skipWithLiteral(TokenTypeName, "x"),
-		p.skipWithLiteral(TokenTypeName, "axis"),
-		p.skipWithLiteral(TokenTypeName, "y"),
-		p.skipWithLiteral(TokenTypeName, "axis"),
-		p.skipWithLiteral(TokenTypePunctuator, ")"),
+	return p.expectAll(
+		p.expectFn(TokenTypePunctuator, "("),
+		p.expectFn(TokenTypeName, "normal"),
+		p.expectFn(TokenTypeName, "left"),
+		p.expectFn(TokenTypeName, "inverted"),
+		p.expectFn(TokenTypeName, "right"),
+		p.expectFn(TokenTypeName, "x"),
+		p.expectFn(TokenTypeName, "axis"),
+		p.expectFn(TokenTypeName, "y"),
+		p.expectFn(TokenTypeName, "axis"),
+		p.expectFn(TokenTypePunctuator, ")"),
 	)
 
 	return nil
@@ -344,9 +344,9 @@ func (p *Parser) parseProperty(output *Output) (bool, error) {
 		}
 	}
 
-	err = p.all(
-		p.skipWithLiteral(TokenTypePunctuator, ":"),
-		p.skipWithLiteral(TokenTypeWhiteSpace, " "),
+	err = p.expectAll(
+		p.expectFn(TokenTypePunctuator, ":"),
+		p.expectFn(TokenTypeWhiteSpace, " "),
 	)
 
 	if err != nil {
