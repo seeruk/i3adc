@@ -1,7 +1,6 @@
 package xrandr
 
 import (
-	"fmt"
 	"unicode/utf8"
 	"unsafe"
 )
@@ -38,41 +37,39 @@ func NewLexer(input []byte) *Lexer {
 
 // Scan attempts to read the next significant token from the input. Tokens that are not understood
 // will yield an "illegal" token.
-func (l *Lexer) Scan() (token Token, err error) {
+func (l *Lexer) Scan() Token {
 	r, _ := l.read()
 
 	switch {
 	// Names:
 	case (r >= 'A' && r <= 'Z') || (r >= 'a' && r <= 'z') || (r >= '0' && r <= '9') || r == '_' || r == '-':
-		token, err = l.scanNameOrNumber(r)
+		return l.scanNameOrNumber(r)
 	// Whitespace:
 	case r == ' ' || r == rune(0x0009):
-		token, err = l.scanWhitespace(r)
+		return l.scanWhitespace(r)
 	// Punctuators:
 	case r == ':' || r == '(' || r == ')' || r == ',' || r == '*' || r == '+':
-		token, err = l.scanPunctuator(r)
+		return l.scanPunctuator(r)
 	// Line Terminators:
 	case r == '\n' || r == '\r':
-		token, err = l.scanLineTerminator(r)
+		return l.scanLineTerminator(r)
 	case r == eof:
-		token = Token{
+		return Token{
 			Type:     TokenTypeEOF,
 			Position: l.lpos,
 			Line:     l.line,
 		}
 	default:
-		token = Token{
+		return Token{
 			Type:     TokenTypeIllegal,
 			Literal:  btos(l.input[l.pos-1 : l.pos]),
 			Position: l.lpos,
 			Line:     l.line,
 		}
 	}
-
-	return
 }
 
-func (l *Lexer) scanLineTerminator(r rune) (Token, error) {
+func (l *Lexer) scanLineTerminator(r rune) Token {
 	byteStart := l.pos - 1
 	runeStart := l.lpos
 
@@ -94,10 +91,10 @@ func (l *Lexer) scanLineTerminator(r rune) (Token, error) {
 		Literal:  btos(l.input[byteStart:l.pos]),
 		Position: runeStart,
 		Line:     l.line,
-	}, nil
+	}
 }
 
-func (l *Lexer) scanNameOrNumber(r rune) (Token, error) {
+func (l *Lexer) scanNameOrNumber(r rune) Token {
 	byteStart := l.pos - 1
 	runeStart := l.lpos
 
@@ -140,28 +137,28 @@ func (l *Lexer) scanNameOrNumber(r rune) (Token, error) {
 		Literal:  btos(l.input[byteStart:l.pos]),
 		Position: runeStart,
 		Line:     l.line,
-	}, nil
+	}
 }
 
-func (l *Lexer) scanNumber(r rune) (Token, error) {
+func (l *Lexer) scanNumber(r rune) Token {
 	byteStart := l.pos - 1
 	runeStart := l.lpos
 
 	var float bool
 	var err error
 
-	r, err = l.readDigits(r)
+	r = l.readDigits(r)
 	if err != nil {
-		return Token{}, err
+		return Token{}
 	}
 
 	if r == '.' {
 		float = true
 
 		r, _ = l.read()
-		r, err = l.readDigits(r)
+		r = l.readDigits(r)
 		if err != nil {
-			return Token{}, err
+			return Token{}
 		}
 	}
 
@@ -179,10 +176,10 @@ func (l *Lexer) scanNumber(r rune) (Token, error) {
 		Literal:  btos(l.input[byteStart:l.pos]),
 		Position: runeStart,
 		Line:     l.line,
-	}, nil
+	}
 }
 
-func (l *Lexer) scanPunctuator(r rune) (Token, error) {
+func (l *Lexer) scanPunctuator(r rune) Token {
 	byteStart := l.pos - 1
 	runeStart := l.lpos
 
@@ -191,10 +188,10 @@ func (l *Lexer) scanPunctuator(r rune) (Token, error) {
 		Literal:  btos(l.input[byteStart:l.pos]),
 		Position: runeStart,
 		Line:     l.line,
-	}, nil
+	}
 }
 
-func (l *Lexer) scanWhitespace(r rune) (Token, error) {
+func (l *Lexer) scanWhitespace(r rune) Token {
 	byteStart := l.pos - 1
 	runeStart := l.lpos
 
@@ -203,12 +200,12 @@ func (l *Lexer) scanWhitespace(r rune) (Token, error) {
 		Literal:  btos(l.input[byteStart:l.pos]),
 		Position: runeStart,
 		Line:     l.line,
-	}, nil
+	}
 }
 
-func (l *Lexer) readDigits(r rune) (rune, error) {
+func (l *Lexer) readDigits(r rune) rune {
 	if !(r >= '0' && r <= '9') {
-		return eof, fmt.Errorf("invalid number, expected digit but got: %q", r)
+		return r
 	}
 
 	var done bool
@@ -224,7 +221,7 @@ func (l *Lexer) readDigits(r rune) (rune, error) {
 		}
 	}
 
-	return r, nil
+	return r
 }
 
 // read moves forward in the input, and returns the next rune available. This function also updates
