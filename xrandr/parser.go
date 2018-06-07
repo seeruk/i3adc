@@ -96,7 +96,7 @@ func (p *Parser) parseResolutionAndPosition(output *Output) error {
 
 		p.scan()
 
-		if _, err := p.consume(TokenTypePunctuator, "+"); err != nil {
+		if err := p.expect(TokenTypePunctuator, "+"); err != nil {
 			return err
 		}
 
@@ -110,7 +110,7 @@ func (p *Parser) parseResolutionAndPosition(output *Output) error {
 			return err
 		}
 
-		if _, err := p.consume(TokenTypePunctuator, "+"); err != nil {
+		if err := p.expect(TokenTypePunctuator, "+"); err != nil {
 			return err
 		}
 
@@ -194,14 +194,10 @@ func (p *Parser) parseOutputDimensions(output *Output) error {
 	p.skipWS = true
 
 	// We probably hit the end of the line here.
-	if p.token.Type != TokenTypeName {
-		if p.token.Type == TokenTypeLineTerminator {
+	if !p.next(TokenTypeName) {
+		if p.skip(TokenTypeLineTerminator) {
 			// We _might_ hit properties next, so we have to do this in advance.
 			p.skipWS = false
-
-			if err := p.scan(); err != nil {
-				return err
-			}
 		}
 
 		return nil
@@ -212,8 +208,7 @@ func (p *Parser) parseOutputDimensions(output *Output) error {
 		return err
 	}
 
-	err = p.skip(TokenTypeName, "x")
-	if err != nil {
+	if err = p.expect(TokenTypeName, "x"); err != nil {
 		return err
 	}
 
@@ -225,13 +220,8 @@ func (p *Parser) parseOutputDimensions(output *Output) error {
 	output.Dimensions.Width = xdim
 	output.Dimensions.Height = ydim
 
-	if p.token.Type == TokenTypeLineTerminator {
-		// We might start looking for properties next, so should stop skipping whitespace.
+	if p.skip(TokenTypeLineTerminator) {
 		p.skipWS = false
-
-		if err := p.scan(); err != nil {
-			return err
-		}
 	}
 
 	return nil
@@ -263,7 +253,7 @@ func (p *Parser) parseProperties(output *Output) error {
 	// Stop skipping whitespace.
 	p.skipWS = false
 
-	if err := p.skip(TokenTypeWhiteSpace, "\t"); err != nil {
+	if err := p.expect(TokenTypeWhiteSpace, "\t"); err != nil {
 		return err
 	}
 
@@ -305,9 +295,7 @@ func (p *Parser) parseProperty(output *Output) (bool, error) {
 
 		name += p.token.Literal
 
-		if err := p.scan(); err != nil {
-			return stop, err
-		}
+		p.scan()
 	}
 
 	err = p.expectAll(
@@ -321,9 +309,7 @@ func (p *Parser) parseProperty(output *Output) (bool, error) {
 
 	if p.token.Type == TokenTypeLineTerminator {
 		for {
-			if err := p.scan(); err != nil {
-				return stop, err
-			}
+			p.scan()
 
 			// We're no longer processing properties if we've hit something that's not a tab at the
 			// start of a new line.
@@ -332,9 +318,7 @@ func (p *Parser) parseProperty(output *Output) (bool, error) {
 				break
 			}
 
-			if err := p.scan(); err != nil {
-				return stop, err
-			}
+			p.scan()
 
 			// If we don't get a second tab, we've hit a new property. So, we need to bail from this
 			// loop iteration.
@@ -343,9 +327,7 @@ func (p *Parser) parseProperty(output *Output) (bool, error) {
 			}
 
 			for {
-				if err := p.scan(); err != nil {
-					return stop, err
-				}
+				p.scan()
 
 				if p.token.Type == TokenTypeLineTerminator {
 					break
@@ -358,9 +340,7 @@ func (p *Parser) parseProperty(output *Output) (bool, error) {
 		value += p.token.Literal
 
 		for {
-			if err := p.scan(); err != nil {
-				return stop, err
-			}
+			p.scan()
 
 			// Consume the value that's on the same line.
 			if p.token.Type == TokenTypeLineTerminator {
@@ -373,9 +353,7 @@ func (p *Parser) parseProperty(output *Output) (bool, error) {
 		// Then, consume everything else after it until we hit another thing that looks like a
 		// new property.
 		for {
-			if err := p.scan(); err != nil {
-				return stop, err
-			}
+			p.scan()
 
 			// We're no longer processing properties if we've hit something that's not a tab at the
 			// start of a new line.
@@ -384,9 +362,7 @@ func (p *Parser) parseProperty(output *Output) (bool, error) {
 				break
 			}
 
-			if err := p.scan(); err != nil {
-				return stop, err
-			}
+			p.scan()
 
 			// If we don't get a second tab, we've hit a new property. So, we need to bail.
 			if p.token.Type != TokenTypeWhiteSpace || p.token.Literal != "\t" {
@@ -395,9 +371,7 @@ func (p *Parser) parseProperty(output *Output) (bool, error) {
 
 			// Skip past the "value"
 			for {
-				if err := p.scan(); err != nil {
-					return stop, err
-				}
+				p.scan()
 
 				if p.token.Type == TokenTypeLineTerminator {
 					break
@@ -419,9 +393,7 @@ func (p *Parser) parseModes(output *Output) error {
 		return nil
 	}
 
-	if err := p.scan(); err != nil {
-		return err
-	}
+	p.scan()
 
 	for {
 		if p.token.Type != TokenTypeName {
@@ -438,13 +410,10 @@ func (p *Parser) parseModes(output *Output) error {
 		}
 
 		mode.Resolution = res
-
-		if err := p.scan(); err != nil {
-			return err
-		}
+		p.scan()
 
 		for {
-			if !p.nextType(TokenTypeFloatValue) {
+			if !p.next(TokenTypeFloatValue) {
 				break
 			}
 
@@ -456,9 +425,7 @@ func (p *Parser) parseModes(output *Output) error {
 				return err
 			}
 
-			if err := p.scan(); err != nil {
-				return err
-			}
+			p.scan()
 
 			if p.skip(TokenTypePunctuator, "*") {
 				rate.IsCurrent = true
@@ -471,7 +438,7 @@ func (p *Parser) parseModes(output *Output) error {
 			mode.Rates = append(mode.Rates, rate)
 		}
 
-		p.skipType(TokenTypeLineTerminator)
+		_ = p.skip(TokenTypeLineTerminator)
 
 		output.Modes = append(output.Modes, mode)
 	}
