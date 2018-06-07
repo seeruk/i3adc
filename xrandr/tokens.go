@@ -16,21 +16,21 @@ const (
 )
 
 var typeNames = map[TokenType]string{
-	TokenTypeIllegal:        "illegal",
-	TokenTypeEOF:            "eof",
-	TokenTypePunctuator:     "punctuator",
-	TokenTypeName:           "name",
-	TokenTypeIntValue:       "int",
-	TokenTypeFloatValue:     "float",
-	TokenTypeWhiteSpace:     "whitespace",
-	TokenTypeLineTerminator: "line terminator",
+	TokenTypeIllegal:        fmt.Sprintf("illegal (%d)", TokenTypeIllegal),
+	TokenTypeEOF:            fmt.Sprintf("eof (%d)", TokenTypeEOF),
+	TokenTypePunctuator:     fmt.Sprintf("punctuator (%d)", TokenTypePunctuator),
+	TokenTypeName:           fmt.Sprintf("name (%d)", TokenTypeName),
+	TokenTypeIntValue:       fmt.Sprintf("int (%d)", TokenTypeIntValue),
+	TokenTypeFloatValue:     fmt.Sprintf("float (%d)", TokenTypeFloatValue),
+	TokenTypeWhiteSpace:     fmt.Sprintf("whitespace (%d)", TokenTypeWhiteSpace),
+	TokenTypeLineTerminator: fmt.Sprintf("line terminator (%d)", TokenTypeLineTerminator),
 }
 
 // TokenType represents the type of a lexical token.
 type TokenType int
 
 func (t TokenType) String() string {
-	return fmt.Sprintf("%s (%d)", typeNames[t], t)
+	return typeNames[t]
 }
 
 // Token represents a lexical token, used to assist parsing.

@@ -1,10 +1,11 @@
 package main
 
 import (
+	"fmt"
 	"log"
 	"os/exec"
+	"time"
 
-	"github.com/davecgh/go-spew/spew"
 	"github.com/seeruk/i3adc/xrandr"
 )
 
@@ -30,14 +31,20 @@ func main() {
 	//
 	//os.Exit(1)
 
+	start := time.Now()
+
 	parser := xrandr.NewParser(true)
 
-	props, err := parser.ParseProps(output)
-	if err != nil {
-		log.Println(err)
+	for i := 0; i < 1000; i++ {
+		_, err := parser.ParseProps(output)
+		if err != nil {
+			log.Println(err)
+		}
 	}
 
-	spew.Dump(props)
+	end := time.Since(start)
+
+	fmt.Println(end)
 
 	//for _, output := range props.Outputs {
 	//	if !output.IsConnected || !output.IsEnabled {

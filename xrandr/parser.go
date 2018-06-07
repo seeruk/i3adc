@@ -1,14 +1,11 @@
 package xrandr
 
 import (
+	"bytes"
+	"errors"
 	"fmt"
-	"regexp"
 	"strconv"
 	"strings"
-)
-
-var (
-	resolutionPattern = regexp.MustCompile(`^([0-9]+)x([0-9]+)i?$`)
 )
 
 type Parser struct {
@@ -462,18 +459,61 @@ func (p *Parser) parseOutput() (Output, error) {
 func (p *Parser) parseResolution(literal string) (bool, Resolution) {
 	var res Resolution
 
-	matches := resolutionPattern.FindStringSubmatch(literal)
-
-	if len(matches) != 3 {
+	litLen := len(literal)
+	if litLen < 3 {
 		return false, res
 	}
 
-	xres, err := strconv.ParseUint(matches[1], 10, 64)
+	// Get the first and last runes, so we can check they're numbers.
+	firstRune := rune(literal[0])
+	lastRuneIdx := litLen - 1
+	lastRune := rune(literal[lastRuneIdx])
+
+	// If the last rune is 'i', make sure we have a literal long enough for that to be valid.
+	if lastRune == 'i' && litLen < 4 {
+		return false, res
+	}
+
+	// If the last rune is 'i', the last number should be the character before the 'i'.
+	if lastRune == 'i' {
+		lastRuneIdx--
+		lastRune = rune(literal[lastRuneIdx])
+	}
+
+	if firstRune < '0' || firstRune > '9' {
+		return false, res
+	}
+
+	if lastRune < '0' || lastRune > '9' {
+		return false, res
+	}
+
+	// At this point, we know the first and last rune is a number, and we have at least 3 characters
+	// including those things. So, we now need loop through and find where the 'x' is. If there is
+	// no 'x', then it's not a resolution. We already know it's not at the ends at this point.
+
+	xIdx := -1
+	for i := 1; i < lastRuneIdx; i++ {
+		if rune(literal[i]) == 'x' {
+			xIdx = i
+		}
+	}
+
+	// We didn't find an x, so it's not a resolution.
+	if xIdx == -1 {
+		return false, res
+	}
+
+	// Extract the x and y values from the literal string.
+	xVal := literal[0:xIdx]
+	yVal := literal[xIdx+1 : lastRuneIdx+1]
+
+	xres, err := strconv.ParseUint(xVal, 10, 64)
 	if err != nil {
 		return false, res
 	}
 
-	yres, err := strconv.ParseUint(matches[2], 10, 64)
+	yres, err := strconv.ParseUint(yVal, 10, 64)
 	if err != nil {
 		return false, res
 	}
@@ -599,13 +639,26 @@ func (p *Parser) unexpected(token Token, t TokenType, ls ...string) error {
 		ls = []string{"N/A"}
 	}
 
-	return fmt.Errorf(
-		"parser error: unexpected token found: %s (%q). Wanted: %s (%q). Line: %d. Column: %d",
-		token.Type.String(),
-		token.Literal,
-		t.String(),
-		strings.Join(ls, "|"),
-		token.Line,
-		token.Position,
-	)
+	// This is as nasty as I'm willing to make this right now. But this is the slowest function in
+	// the parser by far, because of the allocations it has to do, simply because it's generating
+	// this message.
+	// TODO(seeruk): Revisit this, it can almost definitely be improved.
+	// TODO(seeruk): Don't call unexpected when it's not absolutely necessary. We can not pass
+	// around errors if we don't need to (i.e. if we want to consume without caring about the error,
+	// like if we just care about whether or not we did consume something).
+	buf := bytes.Buffer{}
+	buf.WriteString("parser error: unexpected token found: ")
+	buf.WriteString(token.Type.String())
+	buf.WriteString(" (")
+	buf.WriteString(token.Literal)
+	buf.WriteString("). Wanted: ")
+	buf.WriteString(t.String())
+	buf.WriteString(" (")
+	buf.WriteString(strings.Join(ls, "|"))
+	buf.WriteString("). Line: ")
+	buf.WriteString(strconv.Itoa(token.Line))
+	buf.WriteString(". Column: ")
+	buf.WriteString(strconv.Itoa(token.Position))
+
+	return errors.New(btos(buf.Bytes()))
 }
