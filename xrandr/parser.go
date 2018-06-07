@@ -15,11 +15,13 @@ var (
 type Parser struct {
 	lexer  *Lexer
 	token  Token
+	debug  bool
 	skipWS bool
 }
 
-func NewParser() *Parser {
+func NewParser(debug bool) *Parser {
 	return &Parser{
+		debug:  debug,
 		skipWS: true,
 	}
 }
@@ -54,8 +56,6 @@ func (p *Parser) ParseProps(input []byte) (PropsOutput, error) {
 }
 
 func (p *Parser) parseOutputName(output *Output) error {
-	p.skipWS = true
-
 	tok, err := p.consume(TokenTypeName)
 	if err != nil {
 		return err
@@ -67,8 +67,6 @@ func (p *Parser) parseOutputName(output *Output) error {
 }
 
 func (p *Parser) parseOutputStatus(output *Output) error {
-	p.skipWS = true
-
 	tok, err := p.consume(TokenTypeName, "connected", "disconnected")
 	if err == nil {
 		output.IsConnected = tok.Literal == "connected"
@@ -82,8 +80,6 @@ func (p *Parser) parseOutputStatus(output *Output) error {
 }
 
 func (p *Parser) parseResolutionAndPosition(output *Output) error {
-	p.skipWS = true
-
 	// If the output is enabled, we should see the current resolution, and the position.
 	if p.next(TokenTypeName) {
 		isRes, res := p.parseResolution(p.token.Literal)
@@ -132,8 +128,6 @@ func (p *Parser) parseResolutionAndPosition(output *Output) error {
 }
 
 func (p *Parser) parseOutputRotationAndReflection(output *Output) error {
-	p.skipWS = true
-
 	// We can ignore this error, we might not have any rotation status.
 	if tok, err := p.consume(TokenTypeName, "normal", "left", "inverted", "right"); err == nil {
 		switch tok.Literal {
@@ -152,7 +146,7 @@ func (p *Parser) parseOutputRotationAndReflection(output *Output) error {
 
 	if tok, err := p.consume(TokenTypeName, "x", "y"); err == nil {
 		// If we get 'x' or 'y' we always expect the word 'axis' to follow.
-		if err := p.expect(TokenTypeName, "axis"); err != nil {
+		if _, err := p.consume(TokenTypeName, "axis"); err != nil {
 			return err
 		}
 
@@ -168,8 +162,6 @@ func (p *Parser) parseOutputRotationAndReflection(output *Output) error {
 }
 
 func (p *Parser) parseOutputRotationAndReflectionKey() error {
-	p.skipWS = true
-
 	if p.token.Type != TokenTypePunctuator && p.token.Literal == "(" {
 		return nil
 	}
@@ -186,19 +178,15 @@ func (p *Parser) parseOutputRotationAndReflectionKey() error {
 		p.expectFn(TokenTypeName, "axis"),
 		p.expectFn(TokenTypePunctuator, ")"),
 	)
-
-	return nil
 }
 
 func (p *Parser) parseOutputDimensions(output *Output) error {
-	p.skipWS = true
-
 	// We probably hit the end of the line here.
 	if !p.next(TokenTypeName) {
-		if p.skip(TokenTypeLineTerminator) {
-			// We _might_ hit properties next, so we have to do this in advance.
-			p.skipWS = false
-		}
+		// We _might_ hit properties next, so we have to do this in advance. If we do, we'll skip
+		// past the line terminator too so we're in the right place for property parsing.
+		p.skipWS = false
+		p.skip(TokenTypeLineTerminator)
 
 		return nil
 	}
@@ -220,16 +208,15 @@ func (p *Parser) parseOutputDimensions(output *Output) error {
 	output.Dimensions.Width = xdim
 	output.Dimensions.Height = ydim
 
-	if p.skip(TokenTypeLineTerminator) {
-		p.skipWS = false
-	}
+	// We might hit properties next here too, so also turn whitespace skipping off, and move past
+	// the new line, if there is one.
+	p.skipWS = false
+	p.skip(TokenTypeLineTerminator)
 
 	return nil
 }
 
 func (p *Parser) parseOutputDimension() (uint, error) {
-	p.skipWS = true
-
 	tok, err := p.consume(TokenTypeName)
 	if err != nil {
 		return 0, err
@@ -250,9 +237,6 @@ func (p *Parser) parseOutputDimension() (uint, error) {
 }
 
 func (p *Parser) parseProperties(output *Output) error {
-	// Stop skipping whitespace.
-	p.skipWS = false
-
 	if err := p.expect(TokenTypeWhiteSpace, "\t"); err != nil {
 		return err
 	}
@@ -584,6 +568,8 @@ func (p *Parser) expect(t TokenType, ls ...string) error {
 		return p.unexpected(p.token, t, ls...)
 	}
 
+	p.scan()
+
 	return nil
 }
 
@@ -622,6 +608,10 @@ func (p *Parser) skip(t TokenType, ls ...string) bool {
 
 func (p *Parser) scan() {
 	p.token = p.lexer.Scan()
+
+	if p.skipWS && p.token.Type == TokenTypeWhiteSpace {
+		p.scan()
+	}
 }
 
 func (p *Parser) unexpected(token Token, t TokenType, ls ...string) error {
