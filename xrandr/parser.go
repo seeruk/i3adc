@@ -35,17 +35,13 @@ func (p *Parser) ParseProps(input []byte) (PropsOutput, error) {
 		return props, err
 	}
 
-	for {
+	for !p.next(TokenTypeEOF) {
 		output, err := p.parseOutput()
 		if err != nil {
 			return props, err
 		}
 
 		props.Outputs = append(props.Outputs, output)
-
-		if p.token.Type == TokenTypeEOF {
-			break
-		}
 	}
 
 	return props, nil
