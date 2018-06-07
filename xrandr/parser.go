@@ -363,17 +363,11 @@ func (p *Parser) parseModes(output *Output) error {
 	p.skipWS = true
 
 	// Sometimes we don't have modes to parse.
-	if p.token.Type != TokenTypeWhiteSpace && p.token.Literal != " " {
+	if !p.skip(TokenTypeWhiteSpace, " ") {
 		return nil
 	}
 
-	p.scan()
-
-	for {
-		if p.token.Type != TokenTypeName {
-			break
-		}
-
+	for p.next(TokenTypeName) {
 		var mode OutputMode
 
 		isRes, res := p.parseResolution(p.token.Literal)
@@ -386,11 +380,7 @@ func (p *Parser) parseModes(output *Output) error {
 		mode.Resolution = res
 		p.scan()
 
-		for {
-			if !p.next(TokenTypeFloatValue) {
-				break
-			}
-
+		for p.next(TokenTypeFloatValue) {
 			var rate Rate
 			var err error
 
@@ -412,7 +402,7 @@ func (p *Parser) parseModes(output *Output) error {
 			mode.Rates = append(mode.Rates, rate)
 		}
 
-		_ = p.skip(TokenTypeLineTerminator)
+		p.skip(TokenTypeLineTerminator)
 
 		output.Modes = append(output.Modes, mode)
 	}
