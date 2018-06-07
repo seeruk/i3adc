@@ -8,7 +8,6 @@ import (
 )
 
 var (
-	dimensionPattern  = regexp.MustCompile(`^([0-9]+)mm$`)
 	resolutionPattern = regexp.MustCompile(`^([0-9]+)x([0-9]+)i?$`)
 )
 
@@ -222,13 +221,30 @@ func (p *Parser) parseOutputDimension() (uint, error) {
 		return 0, err
 	}
 
-	matches := dimensionPattern.FindStringSubmatch(tok.Literal)
-
-	if len(matches) != 2 {
-		return 0, err
+	dimLen := len(tok.Literal)
+	if dimLen < 3 {
+		return 0, p.unexpected(tok, TokenTypeName, "xxxmm")
 	}
 
-	dim, err := strconv.ParseUint(matches[1], 10, 64)
+	// Dimension number as string.
+	var ds string
+
+	// We can move a byte at a time, because we should only have single-byte runes to deal with.
+	for i := 0; i < dimLen; i++ {
+		r := rune(tok.Literal[i])
+
+		if i >= dimLen-2 && r != 'm' {
+			return 0, p.unexpected(tok, TokenTypeName, "xxxmm")
+		} else if i < dimLen-2 && (r < '0' || r > '9') {
+			return 0, p.unexpected(tok, TokenTypeName, "xxxmm")
+		}
+
+		if r >= '0' && r <= '9' {
+			ds += string(r)
+		}
+	}
+
+	dim, err := strconv.ParseUint(ds, 10, 64)
 	if err != nil {
 		return 0, err
 	}

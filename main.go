@@ -1,10 +1,10 @@
 package main
 
 import (
-	"fmt"
 	"log"
 	"os/exec"
 
+	"github.com/davecgh/go-spew/spew"
 	"github.com/seeruk/i3adc/xrandr"
 )
 
@@ -37,15 +37,17 @@ func main() {
 		log.Println(err)
 	}
 
-	for _, output := range props.Outputs {
-		if !output.IsConnected || !output.IsEnabled {
-			continue
-		}
+	spew.Dump(props)
 
-		fmt.Printf("%s: %dx%d\n", output.Name, output.Resolution.Width, output.Resolution.Height)
-		fmt.Printf("EDID: %s\n", output.Properties["EDID"])
-		fmt.Println()
-	}
+	//for _, output := range props.Outputs {
+	//	if !output.IsConnected || !output.IsEnabled {
+	//		continue
+	//	}
+	//
+	//	fmt.Printf("%s: %dx%d\n", output.Name, output.Resolution.Width, output.Resolution.Height)
+	//	fmt.Printf("EDID: %s\n", output.Properties["EDID"])
+	//	fmt.Println()
+	//}
 }
 
 func fatal(err error) {
