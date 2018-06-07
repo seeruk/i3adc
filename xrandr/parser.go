@@ -281,13 +281,8 @@ func (p *Parser) parseProperty(output *Output) (bool, error) {
 	// Gather up the entire name. Including any spaces, etc. Until we hit a ':'.
 	name = tok.Literal
 
-	for {
-		if p.token.Type == TokenTypePunctuator && p.token.Literal == ":" {
-			break
-		}
-
+	for !p.next(TokenTypePunctuator, ":") {
 		name += p.token.Literal
-
 		p.scan()
 	}
 
@@ -300,62 +295,52 @@ func (p *Parser) parseProperty(output *Output) (bool, error) {
 		return stop, err
 	}
 
-	if p.token.Type == TokenTypeLineTerminator {
+	if p.skip(TokenTypeLineTerminator) {
+		// If we hit a line terminator, then the value should follow on the next line(s).
 		for {
-			p.scan()
-
 			// We're no longer processing properties if we've hit something that's not a tab at the
 			// start of a new line.
-			if p.token.Type != TokenTypeWhiteSpace || p.token.Literal != "\t" {
+			if !p.skip(TokenTypeWhiteSpace, "\t") {
 				stop = true
 				break
 			}
 
-			p.scan()
-
 			// If we don't get a second tab, we've hit a new property. So, we need to bail from this
 			// loop iteration.
-			if p.token.Type != TokenTypeWhiteSpace || p.token.Literal != "\t" {
+			if !p.skip(TokenTypeWhiteSpace, "\t") {
 				break
 			}
 
 			for {
-				p.scan()
+				value += p.token.Literal
 
-				if p.token.Type == TokenTypeLineTerminator {
+				p.scan()
+				if p.skip(TokenTypeLineTerminator) {
 					break
 				}
-
-				value += p.token.Literal
 			}
 		}
-	} else if p.token.Type == TokenTypeName || p.token.Type == TokenTypeIntValue || p.token.Type == TokenTypeFloatValue {
+	} else if p.next(TokenTypeName) || p.next(TokenTypeIntValue) || p.next(TokenTypeFloatValue) {
+		// If instead we hit more tokens after the property name on the same line, then we'll take
+		// the value from there, and when we hit a new line, we'll skip anything that isn't a new
+		// property, assuming that's it's more like documentation.
 		value += p.token.Literal
 
-		for {
+		// Read the value until we hit the line terminator.
+		for !p.skip(TokenTypeLineTerminator) {
 			p.scan()
-
-			// Consume the value that's on the same line.
-			if p.token.Type == TokenTypeLineTerminator {
-				break
-			}
-
 			value += p.token.Literal
 		}
 
 		// Then, consume everything else after it until we hit another thing that looks like a
-		// new property.
+		// new property, or the end of properties altogether.
 		for {
-			p.scan()
-
 			// We're no longer processing properties if we've hit something that's not a tab at the
 			// start of a new line.
-			if p.token.Type != TokenTypeWhiteSpace || p.token.Literal != "\t" {
+			if !p.skip(TokenTypeWhiteSpace, "\t") {
 				stop = true
 				break
 			}
-
-			p.scan()
 
 			// If we don't get a second tab, we've hit a new property. So, we need to bail.
 			if p.token.Type != TokenTypeWhiteSpace || p.token.Literal != "\t" {
@@ -363,12 +348,8 @@ func (p *Parser) parseProperty(output *Output) (bool, error) {
 			}
 
 			// Skip past the "value"
-			for {
+			for !p.skip(TokenTypeLineTerminator) {
 				p.scan()
-
-				if p.token.Type == TokenTypeLineTerminator {
-					break
-				}
 			}
 		}
 	}
