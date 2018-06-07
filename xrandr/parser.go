@@ -226,9 +226,6 @@ func (p *Parser) parseOutputDimension() (uint, error) {
 		return 0, p.unexpected(tok, TokenTypeName, "xxxmm")
 	}
 
-	// Dimension number as string.
-	var ds string
-
 	// We can move a byte at a time, because we should only have single-byte runes to deal with.
 	for i := 0; i < dimLen; i++ {
 		r := rune(tok.Literal[i])
@@ -238,13 +235,9 @@ func (p *Parser) parseOutputDimension() (uint, error) {
 		} else if i < dimLen-2 && (r < '0' || r > '9') {
 			return 0, p.unexpected(tok, TokenTypeName, "xxxmm")
 		}
-
-		if r >= '0' && r <= '9' {
-			ds += string(r)
-		}
 	}
 
-	dim, err := strconv.ParseUint(ds, 10, 64)
+	dim, err := strconv.ParseUint(tok.Literal[:dimLen-2], 10, 64)
 	if err != nil {
 		return 0, err
 	}
