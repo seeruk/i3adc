@@ -56,7 +56,7 @@ func (p *Parser) ParseProps(input []byte) (PropsOutput, error) {
 func (p *Parser) parseOutputName(output *Output) error {
 	p.skipWS = true
 
-	tok, err := p.consumeType(TokenTypeName)
+	tok, err := p.consume(TokenTypeName)
 	if err != nil {
 		return err
 	}
@@ -85,7 +85,7 @@ func (p *Parser) parseResolutionAndPosition(output *Output) error {
 	p.skipWS = true
 
 	// If the output is enabled, we should see the current resolution, and the position.
-	if p.token.Type == TokenTypeName {
+	if p.next(TokenTypeName) {
 		isRes, res := p.parseResolution(p.token.Literal)
 		if !isRes {
 			return nil
@@ -94,12 +94,9 @@ func (p *Parser) parseResolutionAndPosition(output *Output) error {
 		output.IsEnabled = true
 		output.Resolution = res
 
-		err := p.scan()
-		if err != nil {
-			return err
-		}
+		p.scan()
 
-		if err := p.skipWithLiteral(TokenTypePunctuator, "+"); err != nil {
+		if _, err := p.consume(TokenTypePunctuator, "+"); err != nil {
 			return err
 		}
 
@@ -113,7 +110,7 @@ func (p *Parser) parseResolutionAndPosition(output *Output) error {
 			return err
 		}
 
-		if err := p.skipWithLiteral(TokenTypePunctuator, "+"); err != nil {
+		if _, err := p.consume(TokenTypePunctuator, "+"); err != nil {
 			return err
 		}
 
@@ -137,64 +134,33 @@ func (p *Parser) parseResolutionAndPosition(output *Output) error {
 func (p *Parser) parseOutputRotationAndReflection(output *Output) error {
 	p.skipWS = true
 
-	if p.token.Type == TokenTypeName {
-		var found bool
-		switch p.token.Literal {
+	// We can ignore this error, we might not have any rotation status.
+	if tok, err := p.consume(TokenTypeName, "normal", "left", "inverted", "right"); err == nil {
+		switch tok.Literal {
 		case "normal":
 			output.Rotation = RotationNormal
-			found = true
 		case "left":
 			output.Rotation = RotationLeft
-			found = true
 		case "inverted":
 			output.Rotation = RotationInverted
-			found = true
 		case "right":
 			output.Rotation = RotationRight
-			found = true
-		default:
-			found = false
 		}
 
-		if found {
-			err := p.scan()
-			if err != nil {
-				return err
-			}
-		}
+		p.scan()
 	}
 
-	if p.token.Type == TokenTypeName {
-		var foundX bool
-		var foundY bool
-
-		switch p.token.Literal {
-		case "x":
-			foundX = true
-		case "y":
-			foundY = true
+	if tok, err := p.consume(TokenTypeName, "x", "y"); err == nil {
+		// If we get 'x' or 'y' we always expect the word 'axis' to follow.
+		if err := p.expect(TokenTypeName, "axis"); err != nil {
+			return err
 		}
 
-		if foundX || foundY {
-			err := p.scan()
-			if err != nil {
-				return err
-			}
-
-			if p.token.Type == TokenTypeName && p.token.Literal == "axis" {
-				if foundX {
-					output.Reflection = ReflectionXAxis
-				}
-
-				if foundY {
-					output.Reflection = ReflectionYAxis
-				}
-
-				err := p.scan()
-				if err != nil {
-					return err
-				}
-			}
+		switch tok.Literal {
+		case "x":
+			output.Reflection = ReflectionXAxis
+		case "y":
+			output.Reflection = ReflectionYAxis
 		}
 	}
 
@@ -246,7 +212,7 @@ func (p *Parser) parseOutputDimensions(output *Output) error {
 		return err
 	}
 
-	err = p.skipWithLiteral(TokenTypeName, "x")
+	err = p.skip(TokenTypeName, "x")
 	if err != nil {
 		return err
 	}
@@ -297,7 +263,7 @@ func (p *Parser) parseProperties(output *Output) error {
 	// Stop skipping whitespace.
 	p.skipWS = false
 
-	if err := p.skipWithLiteral(TokenTypeWhiteSpace, "\t"); err != nil {
+	if err := p.skip(TokenTypeWhiteSpace, "\t"); err != nil {
 		return err
 	}
 
@@ -591,23 +557,23 @@ func (p *Parser) parseScreen() error {
 	// Scan, and skip all expectations here.
 	return p.expectAll(
 		p.expectFn(TokenTypeName, "Screen"),
-		p.expectTypeFn(TokenTypeIntValue),
-		p.expectTypeFn(TokenTypePunctuator),
+		p.expectFn(TokenTypeIntValue),
+		p.expectFn(TokenTypePunctuator),
 		p.expectFn(TokenTypeName, "minimum"),
-		p.expectTypeFn(TokenTypeIntValue),
+		p.expectFn(TokenTypeIntValue),
 		p.expectFn(TokenTypeName, "x"),
-		p.expectTypeFn(TokenTypeIntValue),
-		p.expectTypeFn(TokenTypePunctuator),
+		p.expectFn(TokenTypeIntValue),
+		p.expectFn(TokenTypePunctuator),
 		p.expectFn(TokenTypeName, "current"),
-		p.expectTypeFn(TokenTypeIntValue),
+		p.expectFn(TokenTypeIntValue),
 		p.expectFn(TokenTypeName, "x"),
-		p.expectTypeFn(TokenTypeIntValue),
-		p.expectTypeFn(TokenTypePunctuator),
+		p.expectFn(TokenTypeIntValue),
+		p.expectFn(TokenTypePunctuator),
 		p.expectFn(TokenTypeName, "maximum"),
-		p.expectTypeFn(TokenTypeIntValue),
+		p.expectFn(TokenTypeIntValue),
 		p.expectFn(TokenTypeName, "x"),
-		p.expectTypeFn(TokenTypeIntValue),
-		p.expectTypeFn(TokenTypeLineTerminator),
+		p.expectFn(TokenTypeIntValue),
+		p.expectFn(TokenTypeLineTerminator),
 	)
 }
 
@@ -624,100 +590,71 @@ func (p *Parser) expectAll(fns ...func() error) error {
 }
 
 func (p *Parser) consume(t TokenType, ls ...string) (Token, error) {
-	token := p.token
-	if token.Type != t {
-		return token, p.unexpected(token, t, ls...)
+	tok := p.token
+	if tok.Type != t {
+		return tok, p.unexpected(tok, t, ls...)
+	}
+
+	if len(ls) == 0 {
+		p.scan()
+		return tok, nil
 	}
 
 	for _, l := range ls {
-		if token.Literal != l {
+		if tok.Literal != l {
 			continue
 		}
 
 		p.scan()
-		return token, nil
+		return tok, nil
 	}
 
-	return token, p.unexpected(token, t, ls...)
+	return tok, p.unexpected(tok, t, ls...)
 }
 
-func (p *Parser) consumeType(t TokenType) (Token, error) {
-	token := p.token
-	if token.Type == t {
-		p.scan()
-		return token, nil
-	}
-
-	return token, p.unexpected(token, t)
-}
-
-func (p *Parser) expect(t TokenType, l string) error {
-	if !p.next(t, l) {
-		return p.unexpected(p.token, t, l)
+func (p *Parser) expect(t TokenType, ls ...string) error {
+	if !p.next(t, ls...) {
+		return p.unexpected(p.token, t, ls...)
 	}
 
 	return nil
 }
 
-func (p *Parser) expectType(t TokenType) error {
-	if !p.nextType(t) {
-		return p.unexpected(p.token, t, "")
-	}
-
-	return nil
-}
-
-func (p *Parser) expectFn(t TokenType, l string) func() error {
+func (p *Parser) expectFn(t TokenType, ls ...string) func() error {
 	return func() error {
-		return p.expect(t, l)
+		return p.expect(t, ls...)
 	}
 }
 
-func (p *Parser) expectTypeFn(t TokenType) func() error {
-	return func() error {
-		return p.expectType(t)
-	}
-}
-
-func (p *Parser) next(t TokenType, l string) bool {
-	return p.token.Type == t && p.token.Literal == l
-}
-
-func (p *Parser) nextType(t TokenType) bool {
-	return p.token.Type == t
-}
-
-func (p *Parser) skip(t TokenType, ls ...string) bool {
+func (p *Parser) next(t TokenType, ls ...string) bool {
 	if p.token.Type != t {
 		return false
 	}
 
-	for _, l := range ls {
-		if p.token.Literal != l {
-			continue
-		}
-
-		p.scan()
+	if len(ls) == 0 {
 		return true
+	}
+
+	for _, l := range ls {
+		if p.token.Literal == l {
+			return true
+		}
 	}
 
 	return false
 }
 
-func (p *Parser) skipType(t TokenType) bool {
-	if p.token.Type == t {
-		p.scan()
-		return true
+func (p *Parser) skip(t TokenType, ls ...string) bool {
+	_, err := p.consume(t, ls...)
+	if err != nil {
+		return false
 	}
 
-	return false
+	return true
 }
 
 func (p *Parser) scan() {
 	p.token = p.lexer.Scan()
-	if p.skipWS && p.token.Type == TokenTypeWhiteSpace {
-		p.scan()
-	}
 }
 
 func (p *Parser) unexpected(token Token, t TokenType, ls ...string) error {
