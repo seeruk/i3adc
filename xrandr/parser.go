@@ -35,7 +35,7 @@ func (p *Parser) ParseProps(input []byte) (PropsOutput, error) {
 		return props, err
 	}
 
-	for !p.next(TokenTypeEOF) {
+	for !p.peek(TokenTypeEOF) {
 		output, err := p.parseOutput()
 		if err != nil {
 			return props, err
@@ -73,7 +73,7 @@ func (p *Parser) parseOutputStatus(output *Output) error {
 
 func (p *Parser) parseResolutionAndPosition(output *Output) error {
 	// If the output is enabled, we should see the current resolution, and the position.
-	if p.next(TokenTypeName) {
+	if p.peek(TokenTypeName) {
 		isRes, res := p.parseResolution(p.token.Literal)
 		if !isRes {
 			return nil
@@ -174,7 +174,7 @@ func (p *Parser) parseOutputRotationAndReflectionKey() error {
 
 func (p *Parser) parseOutputDimensions(output *Output) error {
 	// We probably hit the end of the line here.
-	if !p.next(TokenTypeName) {
+	if !p.peek(TokenTypeName) {
 		// We _might_ hit properties next, so we have to do this in advance. If we do, we'll skip
 		// past the line terminator too so we're in the right place for property parsing.
 		p.skipWS = false
@@ -274,7 +274,7 @@ func (p *Parser) parseProperty(output *Output) (bool, error) {
 	// Gather up the entire name. Including any spaces, etc. Until we hit a ':'.
 	name = tok.Literal
 
-	for !p.next(TokenTypePunctuator, ":") {
+	for !p.peek(TokenTypePunctuator, ":") {
 		name += p.token.Literal
 		p.scan()
 	}
@@ -313,7 +313,7 @@ func (p *Parser) parseProperty(output *Output) (bool, error) {
 				}
 			}
 		}
-	} else if p.next(TokenTypeName) || p.next(TokenTypeIntValue) || p.next(TokenTypeFloatValue) {
+	} else if p.peek(TokenTypeName) || p.peek(TokenTypeIntValue) || p.peek(TokenTypeFloatValue) {
 		// If instead we hit more tokens after the property name on the same line, then we'll take
 		// the value from there, and when we hit a new line, we'll skip anything that isn't a new
 		// property, assuming that's it's more like documentation.
@@ -360,7 +360,7 @@ func (p *Parser) parseModes(output *Output) error {
 		return nil
 	}
 
-	for p.next(TokenTypeName) {
+	for p.peek(TokenTypeName) {
 		var mode OutputMode
 
 		isRes, res := p.parseResolution(p.token.Literal)
@@ -373,7 +373,7 @@ func (p *Parser) parseModes(output *Output) error {
 		mode.Resolution = res
 		p.scan()
 
-		for p.next(TokenTypeFloatValue) {
+		for p.peek(TokenTypeFloatValue) {
 			var rate Rate
 			var err error
 
@@ -580,7 +580,7 @@ func (p *Parser) consume(t TokenType, ls ...string) (Token, error) {
 }
 
 func (p *Parser) expect(t TokenType, ls ...string) error {
-	if !p.next(t, ls...) {
+	if !p.peek(t, ls...) {
 		return p.unexpected(p.token, t, ls...)
 	}
 
@@ -595,7 +595,7 @@ func (p *Parser) expectFn(t TokenType, ls ...string) func() error {
 	}
 }
 
-func (p *Parser) next(t TokenType, ls ...string) bool {
+func (p *Parser) peek(t TokenType, ls ...string) bool {
 	if p.token.Type != t {
 		return false
 	}
@@ -614,10 +614,12 @@ func (p *Parser) next(t TokenType, ls ...string) bool {
 }
 
 func (p *Parser) skip(t TokenType, ls ...string) bool {
-	_, err := p.consume(t, ls...)
-	if err != nil {
+	match := p.peek(t, ls...)
+	if !match {
 		return false
 	}
+
+	p.scan()
 
 	return true
 }
