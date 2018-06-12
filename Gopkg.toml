@@ -25,6 +25,14 @@
 #   unused-packages = true
 
 
+[[constraint]]
+  name = "go.uber.org/zap"
+  version = "1.8.0"
+
+[[constraint]]
+  branch = "master"
+  name = "golang.org/x/crypto"
+
 [prune]
   go-tests = true
   unused-packages = true
