@@ -16,5 +16,5 @@ profile.svg
 vendor/
 
 # Binaries
-cmd/i3adc/i3adc
-i3adc
+/cmd/i3adc/i3adc
+/i3adc
