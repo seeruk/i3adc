@@ -12,8 +12,7 @@
 *-profile.svg
 profile.svg
 
-# Project-local glide cache, RE: https://github.com/Masterminds/glide/issues/736
-.glide/
+# Third-party
 vendor/
 
 # Binaries

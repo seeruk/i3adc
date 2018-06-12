@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"log"
 	"os/exec"
-	"time"
 
 	"github.com/seeruk/i3adc/xrandr"
 )
@@ -31,30 +30,22 @@ func main() {
 	//
 	//os.Exit(1)
 
-	start := time.Now()
-
 	parser := xrandr.NewParser(true)
 
-	for i := 0; i < 1000; i++ {
-		_, err := parser.ParseProps(output)
-		if err != nil {
-			log.Println(err)
-		}
+	props, err := parser.ParseProps(output)
+	if err != nil {
+		log.Println(err)
 	}
 
-	end := time.Since(start)
+	for _, output := range props.Outputs {
+		if !output.IsConnected || !output.IsEnabled {
+			continue
+		}
 
-	fmt.Println(end)
-
-	//for _, output := range props.Outputs {
-	//	if !output.IsConnected || !output.IsEnabled {
-	//		continue
-	//	}
-	//
-	//	fmt.Printf("%s: %dx%d\n", output.Name, output.Resolution.Width, output.Resolution.Height)
-	//	fmt.Printf("EDID: %s\n", output.Properties["EDID"])
-	//	fmt.Println()
-	//}
+		fmt.Printf("%s: %dx%d+%d+%d\n", output.Name, output.Resolution.Width, output.Resolution.Height, output.Position.OffsetX, output.Position.OffsetY)
+		fmt.Printf("EDID: %s\n", output.Properties["EDID"])
+		fmt.Println()
+	}
 }
 
 func fatal(err error) {
