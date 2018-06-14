@@ -24,6 +24,9 @@
 #   go-tests = true
 #   unused-packages = true
 
+[prune]
+  go-tests = true
+  unused-packages = true
 
 [[constraint]]
   name = "go.uber.org/zap"
@@ -33,6 +36,10 @@
   branch = "master"
   name = "golang.org/x/crypto"
 
-[prune]
-  go-tests = true
-  unused-packages = true
+[[constraint]]
+  name = "github.com/stretchr/testify"
+  version = "1.2.2"
+
+[[constraint]]
+  name = "go.i3wm.org/i3"
+  version = "4.14.1"

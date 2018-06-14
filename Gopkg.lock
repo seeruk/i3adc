@@ -2,6 +2,49 @@
 
 
 [[projects]]
+  branch = "master"
+  name = "github.com/BurntSushi/xgb"
+  packages = [
+    ".",
+    "xinerama",
+    "xproto"
+  ]
+  revision = "27f122750802c950b2c869a5b63dafcf590ced95"
+
+[[projects]]
+  branch = "master"
+  name = "github.com/BurntSushi/xgbutil"
+  packages = [
+    ".",
+    "xprop"
+  ]
+  revision = "f7c97cef3b4e6c88280a5a7091c3314e815ca243"
+
+[[projects]]
+  name = "github.com/davecgh/go-spew"
+  packages = ["spew"]
+  revision = "346938d642f2ec3594ed81d874461961cd0faa76"
+  version = "v1.1.0"
+
+[[projects]]
+  name = "github.com/pmezard/go-difflib"
+  packages = ["difflib"]
+  revision = "792786c7400a136282c1664665ae0a8db921c6c2"
+  version = "v1.0.0"
+
+[[projects]]
+  name = "github.com/stretchr/testify"
+  packages = ["assert"]
+  revision = "f35b8ab0b5a2cef36673838d662e249dd9c94686"
+  version = "v1.2.2"
+
+[[projects]]
+  name = "go.i3wm.org/i3"
+  packages = ["."]
+  revision = "890d407a1a6abb06738c7a960277e3e39d4cfc29"
+  version = "4.14.1"
+
+[[projects]]
   name = "go.uber.org/atomic"
   packages = ["."]
   revision = "1ea20fb1cbb1cc08cbd0d913a96dead89aa18289"
@@ -44,6 +87,6 @@
 [solve-meta]
   analyzer-name = "dep"
   analyzer-version = 1
-  inputs-digest = "039bffe2ec2bfc42d58d659d5a89a0ce4f1534990337aed5b2960219973d3e05"
+  inputs-digest = "179133ef2329c4d09987f1aaed10b4363bedfc64473edc4f41b992ce70c27164"
   solver-name = "gps-cdcl"
   solver-version = 1
