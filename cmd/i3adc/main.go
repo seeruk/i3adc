@@ -10,6 +10,7 @@ import (
 	"github.com/seeruk/i3adc/internal"
 	"github.com/seeruk/i3adc/internal/daemon"
 	"github.com/seeruk/i3adc/internal/i3"
+	"github.com/seeruk/i3adc/internal/output"
 )
 
 func main() {
@@ -18,33 +19,29 @@ func main() {
 	logger := resolver.ResolveLogger()
 	logger.Info("main: i3adc starting...")
 
-	eventCh := make(chan struct{}, 1)
-	eventCh <- struct{}{} // Always trigger a change at application startup.
-
-	// TODO(seeruk): This is a mock output.Thread, needs to be implemented.
-	go func() {
-		for {
-			select {
-			case <-eventCh:
-				fmt.Println("some event occurred")
-			}
-		}
-	}()
+	eventCh := make(chan struct{}, 1) // I wonder if this buffer should be larger...
+	eventCh <- struct{}{}             // Always trigger a change at application startup.
 
 	ctx, cfn := context.WithCancel(context.Background())
 
 	signals := make(chan os.Signal, 1)
 	signal.Notify(signals, os.Interrupt, os.Kill)
 
-	outputEventThread := i3.NewOutputEventThread(logger, eventCh)
-	outputEventDone := daemon.NewBackgroundThread(ctx, outputEventThread)
+	// TODO(seeruk): Should these be moved to the resolver?
+	i3Thread := i3.NewThread(logger, eventCh)
+	i3ThreadDone := daemon.NewBackgroundThread(ctx, i3Thread)
+
+	outputThread := output.NewThread(logger, eventCh)
+	outputThreadDone := daemon.NewBackgroundThread(ctx, outputThread)
 
 	select {
 	case sig := <-signals:
 		fmt.Println() // Skip the ^C
 		logger.Infow("stopping background threads", "signal", sig)
-	case res := <-outputEventDone:
-		logger.Fatalw("error starting output event thread", "error", res.Error())
+	case res := <-i3ThreadDone:
+		logger.Fatalw("error starting i3 thread", "error", res.Error())
+	case res := <-outputThreadDone:
+		logger.Fatalw("error starting output thread", "error", res.Error())
 	}
 
 	cfn()
@@ -57,7 +54,8 @@ func main() {
 	}()
 
 	// Wait for our background threads to clean up.
-	<-outputEventDone
+	<-i3ThreadDone
+	<-outputThreadDone
 
 	logger.Info("main: i3adc exiting...")
 }

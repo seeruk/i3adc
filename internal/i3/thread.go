@@ -7,9 +7,9 @@ import (
 	"go.i3wm.org/i3"
 )
 
-// OutputEventThread is a background thread designed to push output events from the i3 IPC into a
-// channel to trigger other functionality in i3adc.
-type OutputEventThread struct {
+// Thread is a background thread designed to push output events from the i3 IPC into a channel to
+// trigger other functionality in i3adc.
+type Thread struct {
 	ctx    context.Context
 	cfn    context.CancelFunc
 	logger logging.Logger
@@ -17,18 +17,18 @@ type OutputEventThread struct {
 	rcvr   *i3.EventReceiver
 }
 
-// NewOutputEventThread creates a new output event thread instance.
-func NewOutputEventThread(logger logging.Logger, msgCh chan<- struct{}) *OutputEventThread {
-	logger = logger.With("module", "internal/i3/outputEventThread")
+// NewThread creates a new output event thread instance.
+func NewThread(logger logging.Logger, msgCh chan<- struct{}) *Thread {
+	logger = logger.With("module", "internal/i3/thread")
 
-	return &OutputEventThread{
+	return &Thread{
 		logger: logger,
 		msgCh:  msgCh,
 	}
 }
 
 // Start begins waiting for events from i3, pushing them onto the message channel when possible.
-func (t *OutputEventThread) Start() error {
+func (t *Thread) Start() error {
 	t.logger.Info("thread started")
 	t.ctx, t.cfn = context.WithCancel(context.Background())
 
@@ -61,7 +61,7 @@ func (t *OutputEventThread) Start() error {
 }
 
 // Stop attempts to stop this thread.
-func (t *OutputEventThread) Stop() error {
+func (t *Thread) Stop() error {
 	t.logger.Infow("thread stopping")
 
 	if t.ctx != nil && t.cfn != nil {
