@@ -20,18 +20,15 @@ func main() {
 	logger = logger.With("module", "main")
 	logger.Info("i3adc starting...")
 
-	eventCh := make(chan struct{}, 1)
-
 	ctx, cfn := context.WithCancel(context.Background())
 
 	signals := make(chan os.Signal, 1)
 	signal.Notify(signals, os.Interrupt, os.Kill)
 
-	// TODO(seeruk): Should these be moved to the resolver?
-	i3Thread := i3.NewThread(resolver.ResolveLogger(), eventCh)
+	i3Thread, i3EventCh := i3.NewThread(resolver.ResolveLogger())
 	i3ThreadDone := daemon.NewBackgroundThread(ctx, i3Thread)
 
-	xrandrThread := xrandr.NewThread(resolver.ResolveLogger(), eventCh)
+	xrandrThread := xrandr.NewThread(resolver.ResolveLogger(), i3EventCh)
 	xrandrThreadDone := daemon.NewBackgroundThread(ctx, xrandrThread)
 
 	select {

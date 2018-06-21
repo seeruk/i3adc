@@ -18,13 +18,14 @@ type Thread struct {
 }
 
 // NewThread creates a new output event thread instance.
-func NewThread(logger logging.Logger, msgCh chan<- struct{}) *Thread {
+func NewThread(logger logging.Logger) (*Thread, <-chan struct{}) {
 	logger = logger.With("module", "i3/thread")
+	msgCh := make(chan struct{}, 1)
 
 	return &Thread{
 		logger: logger,
 		msgCh:  msgCh,
-	}
+	}, msgCh
 }
 
 // Start begins waiting for events from i3, pushing them onto the message channel when possible.
