@@ -1,6 +1,6 @@
 package zap
 
-import "github.com/seeruk/i3adc/internal/logging"
+import "github.com/seeruk/i3adc/logging"
 
 // Config contains all of the configuration relevant to a zap-based logger.
 type Config struct {

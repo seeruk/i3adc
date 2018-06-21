@@ -3,7 +3,7 @@ package i3
 import (
 	"context"
 
-	"github.com/seeruk/i3adc/internal/logging"
+	"github.com/seeruk/i3adc/logging"
 	"go.i3wm.org/i3"
 )
 
@@ -19,7 +19,7 @@ type Thread struct {
 
 // NewThread creates a new output event thread instance.
 func NewThread(logger logging.Logger, msgCh chan<- struct{}) *Thread {
-	logger = logger.With("module", "internal/i3/thread")
+	logger = logger.With("module", "i3/thread")
 
 	return &Thread{
 		logger: logger,

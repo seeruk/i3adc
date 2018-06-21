@@ -1,4 +1,4 @@
-package xrandr
+package props
 
 import (
 	"bytes"
@@ -22,10 +22,10 @@ func NewParser(debug bool) *Parser {
 	}
 }
 
-func (p *Parser) ParseProps(input []byte) (PropsOutput, error) {
-	var props PropsOutput
+func (p *Parser) ParseProps(input []byte) (CommandOutput, error) {
+	var props CommandOutput
 
-	// This isn't thread-safe.
+	// This isn't thread-safe, so don't share this parser.
 	p.lexer = NewLexer(input)
 	p.scan()
 

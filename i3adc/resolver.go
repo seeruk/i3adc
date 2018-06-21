@@ -1,8 +1,8 @@
 package internal
 
 import (
-	"github.com/seeruk/i3adc/internal/logging"
-	"github.com/seeruk/i3adc/internal/logging/zap"
+	"github.com/seeruk/i3adc/logging"
+	"github.com/seeruk/i3adc/logging/zap"
 )
 
 // Resolver is a type that resolves application dependencies. Calling a resolver method is likely to

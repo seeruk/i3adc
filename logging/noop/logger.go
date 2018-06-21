@@ -1,6 +1,6 @@
 package noop
 
-import "github.com/seeruk/i3adc/internal/logging"
+import "github.com/seeruk/i3adc/logging"
 
 // Logger is a no-op logger that implements the interface of this package, but doesn't actually
 // do anything... at all.

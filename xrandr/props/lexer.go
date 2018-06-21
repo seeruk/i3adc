@@ -1,4 +1,4 @@
-package xrandr
+package props
 
 import (
 	"unicode/utf8"

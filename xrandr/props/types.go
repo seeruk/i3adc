@@ -1,4 +1,4 @@
-package xrandr
+package props
 
 const (
 	RotationNormal = iota
@@ -17,8 +17,8 @@ const (
 
 type Reflection int
 
-// PropsOutput represents parts of the output of running `xrandr --props`.
-type PropsOutput struct {
+// CommandOutput represents parts of the output of running `xrandr --props`.
+type CommandOutput struct {
 	Outputs []Output
 }
 

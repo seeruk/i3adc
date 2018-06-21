@@ -1,7 +1,7 @@
 package zap
 
 import (
-	"github.com/seeruk/i3adc/internal/logging"
+	"github.com/seeruk/i3adc/logging"
 	"go.uber.org/zap"
 )
 

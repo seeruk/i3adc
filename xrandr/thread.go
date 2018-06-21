@@ -1,10 +1,10 @@
-package output
+package xrandr
 
 import (
 	"context"
 	"fmt"
 
-	"github.com/seeruk/i3adc/internal/logging"
+	"github.com/seeruk/i3adc/logging"
 )
 
 // Thread is a process that will wait for events from an event channel, and based on those events,
@@ -18,7 +18,7 @@ type Thread struct {
 
 // NewThread returns a new output thread instance.
 func NewThread(logger logging.Logger, eventCh <-chan struct{}) *Thread {
-	logger = logger.With("module", "internal/output/thread")
+	logger = logger.With("module", "xrandr/thread")
 
 	return &Thread{
 		eventCh: eventCh,

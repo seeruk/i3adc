@@ -4,7 +4,7 @@ import (
 	"os"
 	"syscall"
 
-	"github.com/seeruk/i3adc/internal/logging"
+	"github.com/seeruk/i3adc/logging"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
 	"golang.org/x/crypto/ssh/terminal"
