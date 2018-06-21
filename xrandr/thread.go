@@ -2,7 +2,6 @@ package xrandr
 
 import (
 	"context"
-	"fmt"
 
 	"github.com/seeruk/i3adc/logging"
 )
@@ -38,7 +37,12 @@ func (t *Thread) Start() error {
 			t.logger.Info("thread stopped")
 			return t.ctx.Err()
 		case <-t.eventCh:
-			fmt.Println("some event occurred")
+			err := t.onEvent()
+			if err != nil {
+				t.logger.Errorw("error handling event",
+					"error", err.Error(),
+				)
+			}
 		}
 	}
 }
@@ -50,6 +54,29 @@ func (t *Thread) Stop() error {
 	if t.ctx != nil && t.cfn != nil {
 		t.cfn()
 	}
+
+	return nil
+}
+
+func (t *Thread) onEvent() error {
+	t.logger.Debug("event occurred")
+
+	props, err := getProps()
+	if err != nil {
+		return err
+	}
+
+	outputs, err := parseProps(props)
+	if err != nil {
+		return err
+	}
+
+	hash, err := calculateHashForOutputs(outputs)
+	if err != nil {
+		return err
+	}
+
+	t.logger.Debugw("calculated hash", "hash", hash)
 
 	return nil
 }

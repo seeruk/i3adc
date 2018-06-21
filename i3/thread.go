@@ -30,6 +30,8 @@ func NewThread(logger logging.Logger, msgCh chan<- struct{}) *Thread {
 // Start begins waiting for events from i3, pushing them onto the message channel when possible.
 func (t *Thread) Start() error {
 	t.logger.Info("thread started")
+	t.msgCh <- struct{}{} // Send initial message at startup.
+
 	t.ctx, t.cfn = context.WithCancel(context.Background())
 
 	t.rcvr = i3.Subscribe(i3.OutputEventType)

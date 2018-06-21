@@ -66,17 +66,3 @@ func calculateHashForOutputs(outputs []props.Output) (string, error) {
 
 	return hex.EncodeToString(sum.Sum(nil)), nil
 }
-
-func All() (string, error) {
-	props, err := getProps()
-	if err != nil {
-		return "", err
-	}
-
-	outputs, err := parseProps(props)
-	if err != nil {
-		return "", err
-	}
-
-	return calculateHashForOutputs(outputs)
-}

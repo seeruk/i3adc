@@ -20,8 +20,7 @@ func main() {
 	logger = logger.With("module", "main")
 	logger.Info("i3adc starting...")
 
-	eventCh := make(chan struct{}, 1) // I wonder if this buffer should be larger...
-	eventCh <- struct{}{}             // Always trigger a change at application startup.
+	eventCh := make(chan struct{}, 1)
 
 	ctx, cfn := context.WithCancel(context.Background())
 
