@@ -25,6 +25,7 @@ func main() {
 	signals := make(chan os.Signal, 1)
 	signal.Notify(signals, os.Interrupt, os.Kill)
 
+	// TODO(seeruk): Should these be moved to the resolver? (Yes)
 	i3Thread, i3EventCh := i3.NewThread(resolver.ResolveLogger())
 	i3ThreadDone := daemon.NewBackgroundThread(ctx, i3Thread)
 
