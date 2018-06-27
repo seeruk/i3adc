@@ -2,8 +2,6 @@ package state
 
 import (
 	"errors"
-
-	"github.com/golang/protobuf/proto"
 )
 
 // KeyLatestLayout is the key under which the most recently known layout hash is stored.
@@ -20,7 +18,7 @@ var (
 
 // Backend is an interface for interacting with application state at a basic level.
 type Backend interface {
-	Read(key string, val proto.Message) error
-	Write(key string, val proto.Message) error
+	Read(key string) ([]byte, error)
+	Write(key string, val []byte) error
 	Delete(key string) error
 }

@@ -14,7 +14,7 @@ import (
 )
 
 func main() {
-	resolver := internal.NewResolver()
+	resolver := i3adc.NewResolver()
 
 	logger := resolver.ResolveLogger()
 	logger = logger.With("module", "main")
@@ -25,11 +25,13 @@ func main() {
 	signals := make(chan os.Signal, 1)
 	signal.Notify(signals, os.Interrupt, os.Kill)
 
+	backend := resolver.ResolveStateBackend()
+
 	// TODO(seeruk): Should these be moved to the resolver? (Yes)
 	i3Thread, i3EventCh := i3.NewThread(resolver.ResolveLogger())
 	i3ThreadDone := daemon.NewBackgroundThread(ctx, i3Thread)
 
-	xrandrThread := xrandr.NewThread(resolver.ResolveLogger(), i3EventCh)
+	xrandrThread := xrandr.NewThread(backend, resolver.ResolveLogger(), i3EventCh)
 	xrandrThreadDone := daemon.NewBackgroundThread(ctx, xrandrThread)
 
 	select {

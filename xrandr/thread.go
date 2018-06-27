@@ -4,6 +4,7 @@ import (
 	"context"
 
 	"github.com/seeruk/i3adc/logging"
+	"github.com/seeruk/i3adc/state"
 )
 
 // Thread is a process that will wait for events from an event channel, and based on those events,
@@ -11,15 +12,17 @@ import (
 type Thread struct {
 	ctx     context.Context
 	cfn     context.CancelFunc
+	backend state.Backend
 	logger  logging.Logger
 	eventCh <-chan struct{}
 }
 
 // NewThread returns a new output thread instance.
-func NewThread(logger logging.Logger, eventCh <-chan struct{}) *Thread {
+func NewThread(backend state.Backend, logger logging.Logger, eventCh <-chan struct{}) *Thread {
 	logger = logger.With("module", "xrandr/thread")
 
 	return &Thread{
+		backend: backend,
 		eventCh: eventCh,
 		logger:  logger,
 	}
@@ -77,6 +80,37 @@ func (t *Thread) onEvent() error {
 	}
 
 	t.logger.Debugw("calculated hash", "hash", hash)
+
+	latestHashBS, err := t.backend.Read(state.KeyLatestLayout)
+	if err != nil {
+		return err
+	}
+
+	latestHash := string(latestHashBS)
+
+	t.logger.Debugw("latest hash", "hash", latestHash)
+
+	savedLayoutBS, err := t.backend.Read(hash)
+	if err != nil {
+		return err
+	}
+
+	switch {
+	case savedLayoutBS == nil:
+		// If we haven't got a layout stored for this hash, we should activate the preferred mode
+		// for all connected outputs. The user can then set their configuration themselves to update
+		// the saved configuration. This is a new layout.
+		t.logger.Infow("creating a new configuration", "hash", hash)
+	case hash == latestHash:
+		// If the hash is the same, we want to update the existing layout at that hash. Either this
+		// output configuration has been used before, or the user has just updated it. Technically,
+		// all we need to do is that update here...
+		t.logger.Infow("updating an existing configuration", "hash", hash)
+	default:
+		// Otherwise, we aren't updating layout, or creating a new one, we're simply switching to
+		// another layout. In other words, we should just apply the `savedLayoutBS` configuration.
+		t.logger.Infow("switching to existing configuration", "hash", hash, "previous_hash", latestHash)
+	}
 
 	return nil
 }
