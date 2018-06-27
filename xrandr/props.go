@@ -3,10 +3,8 @@ package xrandr
 import (
 	"crypto/md5"
 	"encoding/hex"
-	"fmt"
 	"io"
 	"os/exec"
-	"sort"
 
 	"github.com/seeruk/i3adc/xrandr/props"
 )
@@ -44,24 +42,8 @@ func calculateHashForOutputs(outputs []props.Output) (string, error) {
 			continue
 		}
 
-		// Map access is random, so we need to have the properties be sorted, and then iterated over
-		// so that we know if we have the same properties, with the same values, we'll see them in
-		// the same order each time. Otherwise, we'll get a different hash each time we run this.
-		var keys []string
-		for k := range output.Properties {
-			keys = append(keys, k)
-		}
-
-		sort.Strings(keys)
-
-		for _, k := range keys {
-			v := output.Properties[k]
-
-			_, err := io.WriteString(sum, v)
-			if err != nil {
-				return "", fmt.Errorf("failed to generate hash for outputs: %v", err)
-			}
-		}
+		io.WriteString(sum, output.Name)
+		io.WriteString(sum, output.Properties["EDID"])
 	}
 
 	return hex.EncodeToString(sum.Sum(nil)), nil
