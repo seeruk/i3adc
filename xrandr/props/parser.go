@@ -352,6 +352,38 @@ func (p *Parser) parseProperty(output *Output) (bool, error) {
 	return stop, nil
 }
 
+// parseUndetectedModes attempts to parse (or rather, skip) undetected modes in the xrandr output.
+// For now, we're skipping it because I haven't had time to figure out what they all mean.
+func (p *Parser) parseUndetectedModes() error {
+	// We need to skip 3 spaces for this one to be valid, but not 3.
+	if !p.skip(TokenTypeWhiteSpace, " ") {
+		return nil
+	}
+
+	if !p.skip(TokenTypeWhiteSpace, " ") {
+		return nil
+	}
+
+	if !p.peek(TokenTypeName) {
+		return nil
+	}
+
+	for {
+		// Skip the line with the resolution on.
+		if p.skip(TokenTypeLineTerminator) {
+			break
+		}
+
+		p.scan()
+	}
+
+	return nil
+}
+
+func (p *Parser) parseUndetectedMode() error {
+
+}
+
 func (p *Parser) parseModes(output *Output) error {
 	p.skipWS = true
 

@@ -110,7 +110,7 @@ func (t *Thread) onEvent() error {
 		for _, output := range currentLayout {
 			var args []string
 
-			if !output.IsConnected || !output.IsEnabled {
+			if !output.IsConnected {
 				// We have to turn off ones that shouldn't be there!
 				args = []string{
 					"--output", output.Name,
@@ -135,6 +135,8 @@ func (t *Thread) onEvent() error {
 				// is it's height it's width in terms of positioning?
 				lastXPos = lastXPos + int(output.Resolution.Width)
 			}
+
+			t.logger.Debugw("running command", "command", "xrandr", "args", args)
 
 			cmd := exec.Command("xrandr", args...)
 
@@ -203,6 +205,8 @@ func (t *Thread) onEvent() error {
 					args = append(args, "--primary")
 				}
 			}
+
+			t.logger.Debugw("running command", "command", "xrandr", "args", args)
 
 			cmd := exec.Command("xrandr", args...)
 
