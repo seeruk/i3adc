@@ -117,10 +117,17 @@ func (t *Thread) onEvent(evt event.Event) error {
 					"--off",
 				}
 			} else {
+				var preferredMode *Mode
+				for _, mode := range output.Modes {
+					m := mode
+					if mode.IsPreferred {
+						preferredMode = &m
+					}
+				}
+
 				// Otherwise, set some sensible default settings.
 				args = []string{
 					"--output", output.Name,
-					"--auto",
 					"--pos", fmt.Sprintf("%dx0", lastXPos),
 					"--rotate", "normal",
 					"--reflect", "normal",
@@ -130,11 +137,13 @@ func (t *Thread) onEvent(evt event.Event) error {
 					args = append(args, "--primary")
 				}
 
-				// TODO(seeruk): This is wrong, need to get the preferred mode, not the "current"
-				// mode like we are now. If the display is not currently enabled, it will have no
-				// width, meaning this doesn't go up and displays end up in the wrong place in the
-				// default layout.
-				lastXPos += int(output.Width)
+				if preferredMode == nil {
+					args = append(args, "--auto")
+				} else {
+					args = append(args, "--mode", preferredMode.Name)
+				}
+
+				lastXPos += int(preferredMode.Width)
 			}
 
 			t.logger.Debugw("running command", "command", "xrandr", "args", args)

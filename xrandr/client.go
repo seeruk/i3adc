@@ -1,8 +1,6 @@
 package xrandr
 
 import (
-	"log"
-
 	"github.com/BurntSushi/xgb"
 	"github.com/BurntSushi/xgb/randr"
 	"github.com/BurntSushi/xgb/xproto"
@@ -57,7 +55,7 @@ func (c *Client) GetOutputs() ([]Output, error) {
 	for _, xoutput := range resources.Outputs {
 		info, err := randr.GetOutputInfo(c.conn, xoutput, 0).Reply()
 		if err != nil {
-			log.Fatal(err)
+			return outputs, err
 		}
 
 		output := Output{}
@@ -70,6 +68,15 @@ func (c *Client) GetOutputs() ([]Output, error) {
 
 		if xoutput == primary.Output {
 			output.IsPrimary = true
+		}
+
+		for i, modeID := range info.Modes {
+			mode := modes[uint32(modeID)]
+			if i < int(info.NumPreferred) {
+				mode.IsPreferred = true
+			}
+
+			output.Modes = append(output.Modes, mode)
 		}
 
 		// Get information about the currently active mode, apply it to the output if possible.
@@ -153,10 +160,11 @@ func prepareModes(resources *randr.GetScreenResourcesReply) map[uint32]Mode {
 	modes := make(map[uint32]Mode)
 	for _, xmode := range resources.Modes {
 		modes[xmode.Id] = Mode{
-			ID:     uint(xmode.Id),
-			Name:   string(resources.Names[nameOffset : nameOffset+int(xmode.NameLen)]),
-			Width:  uint(xmode.Width),
-			Height: uint(xmode.Height),
+			ID:          uint(xmode.Id),
+			Name:        string(resources.Names[nameOffset : nameOffset+int(xmode.NameLen)]),
+			Width:       uint(xmode.Width),
+			Height:      uint(xmode.Height),
+			IsPreferred: false,
 		}
 
 		nameOffset += int(xmode.NameLen)

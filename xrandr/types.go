@@ -35,6 +35,7 @@ type Output struct {
 	Rotation    Rotation   `json:"rotation"`
 	Reflection  Reflection `json:"reflection"`
 	Properties  Properties `json:"properties,omitempty"`
+	Modes       []Mode     `json:"modes"`
 }
 
 // Properties represents the properties of an output.
@@ -42,8 +43,9 @@ type Properties map[string][]byte
 
 // Mode represents an randr mode, only including the information we need.
 type Mode struct {
-	ID     uint   `json:"id"`
-	Name   string `json:"name"`
-	Width  uint   `json:"width"`
-	Height uint   `json:"height"`
+	ID          uint   `json:"id"`
+	Name        string `json:"name"`
+	Width       uint   `json:"width"`
+	Height      uint   `json:"height"`
+	IsPreferred bool   `json:"is_preferred"`
 }
