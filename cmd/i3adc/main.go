@@ -31,7 +31,7 @@ func main() {
 	i3Thread, i3EventCh := i3.NewThread(resolver.ResolveLogger())
 	i3ThreadDone := daemon.NewBackgroundThread(ctx, i3Thread)
 
-	xrandrThread := xrandr.NewThread(backend, resolver.ResolveLogger(), i3EventCh)
+	xrandrThread := xrandr.NewThread(backend, resolver.ResolveXrandrClient(), resolver.ResolveLogger(), i3EventCh)
 	xrandrThreadDone := daemon.NewBackgroundThread(ctx, xrandrThread)
 
 	select {

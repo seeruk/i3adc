@@ -6,9 +6,9 @@ import (
 	"fmt"
 	"os/exec"
 
+	"github.com/seeruk/i3adc/event"
 	"github.com/seeruk/i3adc/logging"
 	"github.com/seeruk/i3adc/state"
-	"github.com/seeruk/i3adc/xrandr/props"
 )
 
 // Thread is a process that will wait for events from an event channel, and based on those events,
@@ -17,16 +17,18 @@ type Thread struct {
 	ctx     context.Context
 	cfn     context.CancelFunc
 	backend state.Backend
+	client  *Client
 	logger  logging.Logger
-	eventCh <-chan struct{}
+	eventCh <-chan event.Event
 }
 
 // NewThread returns a new output thread instance.
-func NewThread(backend state.Backend, logger logging.Logger, eventCh <-chan struct{}) *Thread {
+func NewThread(backend state.Backend, client *Client, logger logging.Logger, eventCh <-chan event.Event) *Thread {
 	logger = logger.With("module", "xrandr/thread")
 
 	return &Thread{
 		backend: backend,
+		client:  client,
 		eventCh: eventCh,
 		logger:  logger,
 	}
@@ -43,8 +45,8 @@ func (t *Thread) Start() error {
 		case <-t.ctx.Done():
 			t.logger.Info("thread stopped")
 			return t.ctx.Err()
-		case <-t.eventCh:
-			err := t.onEvent()
+		case evt := <-t.eventCh:
+			err := t.onEvent(evt)
 			if err != nil {
 				t.logger.Errorw("error handling event",
 					"error", err.Error(),
@@ -65,10 +67,10 @@ func (t *Thread) Stop() error {
 	return nil
 }
 
-func (t *Thread) onEvent() error {
+func (t *Thread) onEvent(evt event.Event) error {
 	t.logger.Debug("event occurred")
 
-	currentLayout, err := getLayout()
+	currentLayout, err := t.client.GetOutputs()
 	if err != nil {
 		return err
 	}
@@ -101,8 +103,6 @@ func (t *Thread) onEvent() error {
 		// the saved configuration. This is a new layout.
 		t.logger.Infow("creating a new configuration", "hash", hash)
 
-		// TODO(seeruk): Move logic away from here...
-
 		var lastXPos int
 
 		// For all connected outputs, activate the preferred mode, and do a little bit of auto
@@ -130,10 +130,11 @@ func (t *Thread) onEvent() error {
 					args = append(args, "--primary")
 				}
 
-				// NOTE(seeruk): Not here, but later when we're working on generating xrandr commands,
-				// we will potentially need to take into account rotation. If a screen is on it's side,
-				// is it's height it's width in terms of positioning?
-				lastXPos = lastXPos + int(output.Resolution.Width)
+				// TODO(seeruk): This is wrong, need to get the preferred mode, not the "current"
+				// mode like we are now. If the display is not currently enabled, it will have no
+				// width, meaning this doesn't go up and displays end up in the wrong place in the
+				// default layout.
+				lastXPos += int(output.Width)
 			}
 
 			t.logger.Debugw("running command", "command", "xrandr", "args", args)
@@ -147,7 +148,8 @@ func (t *Thread) onEvent() error {
 			}
 		}
 
-		currentLayout, err := getLayout()
+		// Re-fetch layout, so our changes are applied to our in-memory representation.
+		currentLayout, err := t.client.GetOutputs()
 		if err != nil {
 			return err
 		}
@@ -159,7 +161,7 @@ func (t *Thread) onEvent() error {
 
 		t.backend.Write(state.KeyLatestLayout, []byte(hash))
 		t.backend.Write(hash, currentLayoutBS)
-	case hash == latestHash:
+	case !evt.IsStartup && hash == latestHash:
 		// If the hash is the same, we want to update the existing layout at that hash. Either this
 		// output configuration has been used before, or the user has just updated it. Technically,
 		// all we need to do is that update here...
@@ -177,7 +179,7 @@ func (t *Thread) onEvent() error {
 		// another layout. In other words, we should just apply the `savedLayoutBS` configuration.
 		t.logger.Infow("switching to existing configuration", "hash", hash, "previous_hash", latestHash)
 
-		var savedLayout []props.Output
+		var savedLayout []Output
 
 		err := json.Unmarshal(savedLayoutBS, &savedLayout)
 		if err != nil {
@@ -195,8 +197,8 @@ func (t *Thread) onEvent() error {
 			} else {
 				args = []string{
 					"--output", output.Name,
-					"--mode", fmt.Sprintf("%dx%d", output.Resolution.Width, output.Resolution.Height),
-					"--pos", fmt.Sprintf("%dx%d", output.Position.OffsetX, output.Position.OffsetY),
+					"--mode", fmt.Sprintf("%dx%d", output.Width, output.Height),
+					"--pos", fmt.Sprintf("%dx%d", output.OffsetX, output.OffsetY),
 					"--rotate", "normal", // @TODO
 					"--reflect", "normal", // @TODO
 				}
@@ -216,16 +218,9 @@ func (t *Thread) onEvent() error {
 				return err
 			}
 		}
+
+		t.backend.Write(state.KeyLatestLayout, []byte(hash))
 	}
 
 	return nil
-}
-
-func getLayout() ([]props.Output, error) {
-	ps, err := getProps()
-	if err != nil {
-		return []props.Output{}, err
-	}
-
-	return parseProps(ps)
 }

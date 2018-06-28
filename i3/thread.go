@@ -3,6 +3,7 @@ package i3
 import (
 	"context"
 
+	"github.com/seeruk/i3adc/event"
 	"github.com/seeruk/i3adc/logging"
 	"go.i3wm.org/i3"
 )
@@ -13,14 +14,14 @@ type Thread struct {
 	ctx    context.Context
 	cfn    context.CancelFunc
 	logger logging.Logger
-	msgCh  chan<- struct{}
+	msgCh  chan<- event.Event
 	rcvr   *i3.EventReceiver
 }
 
 // NewThread creates a new output event thread instance.
-func NewThread(logger logging.Logger) (*Thread, <-chan struct{}) {
+func NewThread(logger logging.Logger) (*Thread, <-chan event.Event) {
 	logger = logger.With("module", "i3/thread")
-	msgCh := make(chan struct{}, 1)
+	msgCh := make(chan event.Event, 1)
 
 	return &Thread{
 		logger: logger,
@@ -31,7 +32,7 @@ func NewThread(logger logging.Logger) (*Thread, <-chan struct{}) {
 // Start begins waiting for events from i3, pushing them onto the message channel when possible.
 func (t *Thread) Start() error {
 	t.logger.Info("thread started")
-	t.msgCh <- struct{}{} // Send initial message at startup.
+	t.msgCh <- event.Event{IsStartup: true} // Send initial message at startup.
 
 	t.ctx, t.cfn = context.WithCancel(context.Background())
 
@@ -51,7 +52,8 @@ func (t *Thread) Start() error {
 			default:
 			}
 
-			t.msgCh <- struct{}{}
+			t.logger.Debugw("received event from i3", "event", t.rcvr.Event())
+			t.msgCh <- event.Event{}
 		}
 	}()
 

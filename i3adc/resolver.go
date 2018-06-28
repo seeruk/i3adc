@@ -6,6 +6,7 @@ import (
 	"github.com/seeruk/i3adc/logging"
 	"github.com/seeruk/i3adc/logging/zap"
 	"github.com/seeruk/i3adc/state/bolt"
+	"github.com/seeruk/i3adc/xrandr"
 
 	boltdb "github.com/coreos/bbolt"
 )
@@ -15,8 +16,9 @@ import (
 // asking for, and it will continue to follow that path until the entire dependency tree has been
 // resolved for the dependency you're asking for.
 type Resolver struct {
-	boltDB *boltdb.DB
-	logger logging.Logger
+	boltDB       *boltdb.DB
+	logger       logging.Logger
+	xrandrClient *xrandr.Client
 }
 
 // NewResolver returns a new dependency resolver instance.
@@ -64,9 +66,24 @@ func (r *Resolver) ResolveStateBackend() *bolt.Backend {
 	return backend
 }
 
+// ResolveXrandrClient resolves the singleton application xrandr client instance.
+func (r *Resolver) ResolveXrandrClient() *xrandr.Client {
+	if r.xrandrClient == nil {
+		client, err := xrandr.NewClient()
+		if err != nil {
+			panic(fmt.Sprintf("i3adc: failed to resolve xrandr client: %v", err))
+		}
+
+		r.xrandrClient = client
+	}
+
+	return r.xrandrClient
+}
+
 // resolveEager attempts to resolve dependencies that may error, so that those errors may be
 // encountered at startup, instead of further into the application's life.
 func (r *Resolver) resolveEager() {
 	r.ResolveBoltDB()
 	r.ResolveStateBackend()
+	r.ResolveXrandrClient()
 }
