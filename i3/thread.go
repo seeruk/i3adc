@@ -39,6 +39,9 @@ func (t *Thread) Start() error {
 	t.rcvr = i3.Subscribe(i3.OutputEventType)
 	defer t.rcvr.Close()
 
+	// TODO(seeruk): Can something be done here to avoid processing loads of events that come though
+	// in quick succession?
+
 	// Use a goroutine to allow this thread to be stopped. This goroutine will not die though, which
 	// is very unfortunate, but shouldn't be a problem for i3adc, given it's current implementation.
 	go func() {
