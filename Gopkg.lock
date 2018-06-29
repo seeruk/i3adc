@@ -6,6 +6,8 @@
   name = "github.com/BurntSushi/xgb"
   packages = [
     ".",
+    "randr",
+    "render",
     "xinerama",
     "xproto"
   ]
@@ -19,6 +21,12 @@
     "xprop"
   ]
   revision = "f7c97cef3b4e6c88280a5a7091c3314e815ca243"
+
+[[projects]]
+  name = "github.com/coreos/bbolt"
+  packages = ["."]
+  revision = "583e8937c61f1af6513608ccc75c97b6abdf4ff9"
+  version = "v1.3.0"
 
 [[projects]]
   name = "github.com/davecgh/go-spew"
@@ -87,6 +95,6 @@
 [solve-meta]
   analyzer-name = "dep"
   analyzer-version = 1
-  inputs-digest = "179133ef2329c4d09987f1aaed10b4363bedfc64473edc4f41b992ce70c27164"
+  inputs-digest = "d13971ee8d209236b3545123126b326f44439848a8fb62db03bfbd81ce3451e3"
   solver-name = "gps-cdcl"
   solver-version = 1
