@@ -208,8 +208,8 @@ func (t *Thread) onEvent(evt event.Event) error {
 					"--output", output.Name,
 					"--mode", fmt.Sprintf("%dx%d", output.Width, output.Height),
 					"--pos", fmt.Sprintf("%dx%d", output.OffsetX, output.OffsetY),
-					"--rotate", "normal", // @TODO
-					"--reflect", "normal", // @TODO
+					"--rotate", output.Rotation.String(),
+					"--reflect", output.Reflection.String(),
 				}
 
 				if output.IsPrimary {

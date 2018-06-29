@@ -11,6 +11,22 @@ const (
 // Rotation represents the rotation status of a CRTC, which is sent to an output.
 type Rotation int
 
+// String returns this Rotation as a string, ready for use with the xrandr command.
+func (r Rotation) String() string {
+	switch r {
+	default:
+		fallthrough
+	case RotationNormal:
+		return "normal"
+	case RotationLeft:
+		return "left"
+	case RotationInverted:
+		return "inverted"
+	case RotationRight:
+		return "right"
+	}
+}
+
 // Reflection values.
 const (
 	ReflectionNormal Reflection = iota
@@ -20,6 +36,20 @@ const (
 
 // Reflection represents the reflection status of a CRTC, which is sent to an output.
 type Reflection int
+
+// String returns this Reflection as a string, ready for use with the xrandr command.
+func (r Reflection) String() string {
+	switch r {
+	default:
+		fallthrough
+	case ReflectionNormal:
+		return "normal"
+	case ReflectionX:
+		return "x"
+	case ReflectionY:
+		return "y"
+	}
+}
 
 // Output represents an randr output, condensing the information we need into a simple struct.
 type Output struct {
