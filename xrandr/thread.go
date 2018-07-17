@@ -141,9 +141,8 @@ func (t *Thread) onEvent(evt event.Event) error {
 					args = append(args, "--auto")
 				} else {
 					args = append(args, "--mode", preferredMode.Name)
+					lastXPos += int(preferredMode.Width)
 				}
-
-				lastXPos += int(preferredMode.Width)
 			}
 
 			t.logger.Debugw("running command", "command", "xrandr", "args", args)
